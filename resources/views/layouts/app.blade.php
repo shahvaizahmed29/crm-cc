@@ -8,6 +8,8 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
     <style>
         [x-cloak] { display: none !important; }
     </style>
@@ -17,7 +19,7 @@
         class="sticky top-0 z-40 border-b border-slate-200/80 bg-slate-900/95 text-white shadow-lg backdrop-blur"
         x-data="{ mobileMenuOpen: false }"
     >
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="mx-auto max-w-360 px-4 sm:px-6 lg:px-8">
             <div class="flex h-16 items-center justify-between gap-3 md:h-18">
                 <div class="flex min-w-0 items-center gap-3">
                     <button
@@ -118,7 +120,7 @@
         </div>
     </header>
 
-    <main class="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
+    <main class="mx-auto w-full max-w-360 px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
         @if(session('success'))
             <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-sm">{{ session('success') }}</div>
         @endif
