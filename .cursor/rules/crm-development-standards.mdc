@@ -1,0 +1,45 @@
+---
+description: CRM development standards — optimized, readable, no over-engineering
+alwaysApply: true
+---
+
+# CRM Development Standards
+
+Write code like a senior developer: **optimized**, **readable**, and **pragmatic**. Avoid over-engineering.
+
+## Principles
+
+1. **Optimize for the problem at hand** — Use Laravel/Eloquent features (eager loading, scopes, accessors) where they clearly help. Don’t add caching, queues, or abstractions until there’s a real need.
+2. **Readability first** — Names (variables, methods, classes) should make intent obvious. Prefer a few clear lines over clever one-liners. Short methods and single responsibility help.
+3. **Simple over clever** — Prefer plain controllers + Eloquent + Form Requests. Add services/repositories only when logic is reused or controllers get large (e.g. 100+ lines).
+4. **YAGNI** — Don’t build “for the future.” Add features and layers when requirements appear, not in advance.
+
+## Do
+
+- Use Eloquent relationships, scopes, and `select()` to keep queries efficient and readable.
+- Validate with Form Requests; keep controller actions thin (delegate to model or a single service when needed).
+- Use meaningful names: `$lead->markAsContacted()` not `$lead->updateStatus(3)`.
+- Reuse Blade components and extract partials when the same UI repeats.
+
+## Avoid
+
+- Extra abstraction layers (repositories, DTOs, many service classes) before you have clear duplication or complexity.
+- Premature caching, queues, or event systems for straightforward CRUD.
+- Deep inheritance or excessive interfaces “for flexibility.”
+- Over-normalized DB schemas or speculative fields “just in case.”
+
+## Example
+
+```php
+// ✅ Clear, sufficient
+public function store(StoreLeadRequest $request): RedirectResponse
+{
+    $lead = Lead::create($request->validated());
+    return redirect()->route('leads.show', $lead)->with('success', 'Lead created.');
+}
+
+// ❌ Over-engineered for simple create
+// LeadRepository -> LeadService -> CreateLeadAction -> Event -> Listener...
+```
+
+When in doubt: implement the simplest solution that is correct, readable, and easy to change later.
