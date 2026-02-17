@@ -22,12 +22,22 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class LeadController extends Controller
 {
     private const ACTIVE_STATUS_SLUG = 'new';
-    private const HOLDING_STATUS_SLUGS = [
-        'need-to-reconnect',
-        'callback',
-        'maxout',
-        'drop',
-    ];
+
+    /** @var array<int, string>|null */
+    private ?array $holdingStatusSlugsCache = null;
+
+    /** @return array<int, string> */
+    private function holdingStatusSlugs(): array
+    {
+        if ($this->holdingStatusSlugsCache !== null) {
+            return $this->holdingStatusSlugsCache;
+        }
+
+        $this->holdingStatusSlugsCache = Setting::getJsonArray('holding_status_slugs', []);
+
+        return $this->holdingStatusSlugsCache;
+    }
+
     /** @var array<string, int>|null */
     private ?array $statusIdsBySlugCache = null;
     /** @var array<string, int>|null */
@@ -35,6 +45,10 @@ class LeadController extends Controller
 
     public function index(Request $request): View
     {
+        $user = auth()->user();
+        $isAdmin = $user->isAdmin();
+        $isAgent = $user->isAgent();
+
         $request->validate([
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date'],
@@ -44,22 +58,29 @@ class LeadController extends Controller
         $statusesQuery = Status::orderBy('name');
         $holdingCount = null;
         $historyLimit = $this->agentHistoryLimit();
+        $newStatusId = $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG);
 
-        if (auth()->user()->isAgent()) {
-            $query->where('assigned_to', auth()->id());
-            $newStatusId = $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG);
+        if ($isAgent) {
+            $query->where('assigned_to', $user->id);
             $query->where('status_id', '!=', $newStatusId);
             $query->where('is_dnc', false);
             $statusesQuery->where('slug', '!=', self::ACTIVE_STATUS_SLUG);
             $holdingCount = $this->agentHoldingCount();
         }
 
-        if (auth()->user()->isAdmin() && $request->filled('status')) {
+        if ($isAdmin && $request->filled('status')) {
             $query->where('status_id', $request->status);
         }
 
+        if ($isAgent && $request->filled('status')) {
+            $holdingStatusIds = $this->holdingStatusIds();
+            if (in_array((int) $request->status, $holdingStatusIds, true)) {
+                $query->where('status_id', $request->status);
+            }
+        }
+
         if (
-            auth()->user()->isAdmin()
+            $isAdmin
             && $request->has('dnc')
             && in_array((string) $request->query('dnc'), ['0', '1'], true)
         ) {
@@ -74,16 +95,19 @@ class LeadController extends Controller
             $query->whereDate('updated_at', '<=', $request->date_to);
         }
 
-        if (auth()->user()->isAdmin() && ! $request->filled('status')) {
-            $query->where('status_id', '!=', $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG));
+        if ($isAdmin && ! $request->filled('status')) {
+            $query->where('status_id', '!=', $newStatusId);
             $statusesQuery->where('slug', '!=', self::ACTIVE_STATUS_SLUG);
         }
 
         $query->latest('updated_at');
-        $leads = auth()->user()->isAgent()
+        $leads = $isAgent
             ? $query->limit(50)->get()
             : $query->paginate(20)->withQueryString();
-        $statuses = $statusesQuery->get();
+
+        $statuses = $isAgent
+            ? Status::whereIn('slug', $this->holdingStatusSlugs())->orderBy('name')->get()
+            : $statusesQuery->get();
 
         return view('leads.index', compact('leads', 'statuses', 'holdingCount', 'historyLimit'));
     }
@@ -91,25 +115,13 @@ class LeadController extends Controller
     public function adminNewLeads(Request $request): View
     {
         $newStatusId = $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG);
-        $historyLimit = $this->agentHistoryLimit();
         $leads = Lead::with(['assignedTo', 'phones', 'emails'])
             ->where('status_id', $newStatusId)
             ->latest('updated_at')
             ->paginate(20)
             ->withQueryString();
 
-        return view('leads.new', compact('leads', 'historyLimit'));
-    }
-
-    public function updateAgentHistoryLimit(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'agent_history_limit' => ['required', 'integer', 'min:1', 'max:500'],
-        ]);
-
-        Setting::put('agent_history_limit', (string) $validated['agent_history_limit']);
-
-        return redirect()->route('leads.new.index')->with('success', 'Agent history limit updated.');
+        return view('leads.new', compact('leads'));
     }
 
     public function agentQueue(Request $request): View
@@ -890,7 +902,7 @@ class LeadController extends Controller
         $statusIdsBySlug = $this->statusIdsBySlug();
         $ids = [];
 
-        foreach (self::HOLDING_STATUS_SLUGS as $slug) {
+        foreach ($this->holdingStatusSlugs() as $slug) {
             if (isset($statusIdsBySlug[$slug])) {
                 $ids[] = $statusIdsBySlug[$slug];
             }

@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CreditReport;
 use App\Models\Lead;
-use Illuminate\Http\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -150,7 +150,7 @@ class CreditReportController extends Controller
             return back()->with('error', 'CR file not found.');
         }
 
-        return response()->download(Storage::path($creditReport->report_file_path));
+        return response()->file(Storage::path($creditReport->report_file_path));
     }
 
     public function pendingCount(): JsonResponse

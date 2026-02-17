@@ -52,7 +52,7 @@
                                 <button type="submit" class="rounded bg-sky-600 px-2 py-1 text-xs font-medium text-white hover:bg-sky-500">Update</button>
                             </form>
                             @if($report->report_file_path)
-                                <a href="{{ route('credit-reports.download', $report) }}" class="rounded bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-500">Get Report</a>
+                                <a href="{{ route('credit-reports.download', $report) }}" target="_blank" rel="noopener noreferrer" class="rounded bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-500">Get Report</a>
                             @endif
                             <form action="{{ route('credit-reports.destroy', $report) }}" method="POST" onsubmit="return confirm('Delete this CR request?');">
                                 @csrf

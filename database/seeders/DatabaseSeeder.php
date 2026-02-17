@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,      // users + role_user (admin + agents with roles)
             LeadSeeder::class,      // sample leads (with status_id, assigned_to, phones, emails)
             SessionTimeSeeder::class, // sample session_times (attendance) for agents
+            SettingsSeeder::class,  // settings (agent_history_limit, holding_status_slugs)
         ]);
     }
 }

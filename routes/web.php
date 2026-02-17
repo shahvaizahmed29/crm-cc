@@ -5,6 +5,7 @@ use App\Http\Controllers\CreditReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\SettingController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -27,7 +28,8 @@ Route::middleware('auth')->group(function (): void {
         Route::post('credit-reports/{creditReport}/result', [CreditReportController::class, 'uploadResult'])->name('credit-reports.result');
         Route::delete('credit-reports/{creditReport}', [CreditReportController::class, 'destroy'])->name('credit-reports.destroy');
         Route::get('leads/new', [LeadController::class, 'adminNewLeads'])->name('leads.new.index');
-        Route::post('leads/new/history-limit', [LeadController::class, 'updateAgentHistoryLimit'])->name('leads.new.history-limit.update');
+        Route::get('settings', [SettingController::class, 'index'])->name('settings.index');
+        Route::put('settings', [SettingController::class, 'update'])->name('settings.update');
         Route::get('leads/import/sample', [LeadController::class, 'downloadSampleCsv'])->name('leads.import.sample');
         Route::get('leads/import/history/{importHistory}/{type}', [LeadController::class, 'downloadImportHistoryFile'])->name('leads.import.history.download');
         Route::get('leads/import', [LeadController::class, 'importForm'])->name('leads.import.form');

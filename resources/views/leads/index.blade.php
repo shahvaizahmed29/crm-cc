@@ -3,11 +3,15 @@
 @section('title', 'Leads')
 
 @section('content')
+@php
+    $isAdmin = auth()->user()->isAdmin();
+    $isAgent = auth()->user()->isAgent();
+@endphp
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
     <div>
         <h1 class="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">Leads</h1>
         <p class="mt-1 text-sm text-slate-600">
-            @if(auth()->user()->isAdmin())
+            @if($isAdmin)
                 Manage non-new leads. New leads are available on the New Leads page.
             @else
                 Manage your assigned leads by status.
@@ -15,7 +19,7 @@
         </p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-        @if(auth()->user()->isAdmin())
+        @if($isAdmin)
         <a href="{{ route('leads.export') }}" class="inline-flex justify-center rounded-md bg-slate-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-500">Download CSV</a>
         <a href="{{ route('leads.new.index') }}" class="inline-flex justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500">Open New Leads</a>
         @endif
@@ -51,17 +55,19 @@
             >
         </div>
 
-        @if(auth()->user()->isAdmin())
+        @if($isAdmin || ($isAgent && $statuses->isNotEmpty()))
             <div>
                 <label for="status" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">Status</label>
                 <select name="status" id="status" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
                     <option value="">All statuses</option>
                     @foreach($statuses as $s)
-                        <option value="{{ $s->id }}" {{ request('status') == $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
+                        <option value="{{ $s->id }}" {{ request('status') == (string) $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
                     @endforeach
                 </select>
             </div>
+        @endif
 
+        @if($isAdmin)
             <div>
                 <label for="dnc" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">DNC</label>
                 <select name="dnc" id="dnc" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
@@ -79,14 +85,14 @@
     </div>
 </form>
 
-@if(auth()->user()->isAgent() && isset($holdingCount))
+@if($isAgent && isset($holdingCount))
     <div class="mt-4 rounded-lg border border-slate-200 bg-white p-4">
         <p class="text-sm text-slate-700">
             Holding statuses count:
             <span class="font-semibold">{{ $holdingCount }}</span> / {{ $historyLimit }}
         </p>
         <p class="mt-1 text-xs text-slate-500">
-            These are your leads in holding statuses: Need To Reconnect, Callback, Maxout, Drop.
+            These are your leads in holding statuses: {{ $statuses->isNotEmpty() ? $statuses->pluck('name')->join(', ') : '—' }}.
             @if($holdingCount >= $historyLimit)
                 Queue is locked. Update one lead to a non-holding status to unlock new lead assignment.
             @endif
@@ -105,7 +111,7 @@
                 <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Last Update</th>
                 <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">DNC</th>
                 <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Contacts</th>
-                @if(auth()->user()->isAdmin())
+                @if($isAdmin)
                 <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Assigned To</th>
                 @endif
                 <th scope="col" class="relative px-4 py-3"><span class="sr-only">Options</span></th>
@@ -156,7 +162,7 @@
                         </div>
                     </details>
                 </td>
-                @if(auth()->user()->isAdmin())
+                @if($isAdmin)
                 <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">{{ $lead->assignedTo?->displayName() ?? '—' }}</td>
                 @endif
                 <td class="whitespace-nowrap px-4 py-3 text-right">
@@ -165,7 +171,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="{{ auth()->user()->isAdmin() ? 8 : 7 }}" class="px-4 py-8 text-center text-sm text-slate-500">No leads yet.</td>
+                <td colspan="{{ $isAdmin ? 8 : 7 }}" class="px-4 py-8 text-center text-sm text-slate-500">No leads yet.</td>
             </tr>
             @endforelse
         </tbody>

@@ -145,7 +145,7 @@
                     </button>
                 </form>
                 @if($latestCr && $latestCr->report_file_path)
-                    <a href="{{ route('credit-reports.download', $latestCr) }}" class="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">Get Report</a>
+                    <a href="{{ route('credit-reports.download', $latestCr) }}" target="_blank" rel="noopener noreferrer" class="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">Get Report</a>
                 @endif
             </div>
         </div>

@@ -15,32 +15,6 @@
     </div>
 </div>
 
-<div class="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-    <form action="{{ route('leads.new.history-limit.update') }}" method="POST" class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        @csrf
-        <div>
-            <label for="agent_history_limit" class="block text-sm font-medium text-slate-700">Agent history limit</label>
-            <p class="mt-1 text-xs text-slate-500">Agents are blocked from taking new leads when holding statuses reach this limit.</p>
-        </div>
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <input
-                type="number"
-                name="agent_history_limit"
-                id="agent_history_limit"
-                min="1"
-                max="500"
-                value="{{ old('agent_history_limit', $historyLimit) }}"
-                class="w-28 rounded-md border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500"
-                required
-            >
-            <button type="submit" class="inline-flex justify-center rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-500">Update Limit</button>
-        </div>
-    </form>
-    @error('agent_history_limit')
-        <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
-    @enderror
-</div>
-
 <div class="mt-6 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
     <div class="overflow-x-auto">
     <table class="min-w-full divide-y divide-slate-200">
