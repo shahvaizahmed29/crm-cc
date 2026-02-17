@@ -5,6 +5,9 @@
 @section('content')
 <x-page-header :title="$lead->fullName()">
     <x-slot:actions>
+        @if(auth()->user()->isAdmin())
+            <a href="{{ route('leads.download.txt', $lead) }}" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500">Download TXT</a>
+        @endif
         <a href="{{ route('leads.edit', $lead) }}" class="rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-500">Edit</a>
         <a href="{{ route('leads.index') }}" class="rounded-md bg-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300">Back to list</a>
     </x-slot:actions>

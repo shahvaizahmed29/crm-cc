@@ -140,14 +140,15 @@
             const pollIntervalMs = 3000;
             const endpoint = '{{ route('credit-reports.pending-count') }}';
             const alertSoundUrl = '{{ asset('sounds/notification.wav') }}';
+            const crSoundEnabled = {{ \App\Models\Setting::get('cr_sound_notifications_enabled', '1') === '1' ? 'true' : 'false' }};
             const isCrReportsPage = {{ request()->routeIs('credit-reports.*') ? 'true' : 'false' }};
-            const ackStorageKey = 'cr_pending_ack_latest_id';
+            const soundCooldownMs = 9000;
             // Testing toggle: set true to force beep every poll cycle.
-            const forceCrSoundTest = true;
+            const forceCrSoundTest = false;
             let audioContext = null;
             let audioUnlocked = false;
-            let lastPolledLatestId = 0;
             let alertAudio = null;
+            let lastSoundPlayedAt = 0;
 
             const updateBadges = (count) => {
                 const badges = document.querySelectorAll('.js-cr-pending-badge');
@@ -168,6 +169,10 @@
 
             const playFallbackTone = async () => {
                 try {
+                    if (!audioUnlocked) {
+                        return false;
+                    }
+
                     const AudioCtx = window.AudioContext || window.webkitAudioContext;
                     if (!AudioCtx) {
                         return false;
@@ -219,10 +224,6 @@
             };
 
             const playAlertSound = async () => {
-                if (!audioUnlocked) {
-                    await unlockAudio();
-                }
-
                 const audio = ensureAlertAudio();
                 if (audio) {
                     try {
@@ -273,16 +274,6 @@
                 }
             };
 
-            const getAckedLatestId = () => {
-                const raw = window.localStorage.getItem(ackStorageKey);
-                const parsed = Number(raw ?? 0);
-                return Number.isFinite(parsed) ? parsed : 0;
-            };
-
-            const setAckedLatestId = (id) => {
-                window.localStorage.setItem(ackStorageKey, String(Math.max(0, id)));
-            };
-
             const poll = async () => {
                 try {
                     const response = await fetch(endpoint, {
@@ -296,41 +287,24 @@
 
                     const data = await response.json();
                     const count = Number(data?.count ?? 0) || 0;
-                    const latestPendingId = Number(data?.latest_pending_id ?? 0) || 0;
+                    const shouldBugByPending = count > 0 && !isCrReportsPage;
 
-                    if (isCrReportsPage) {
-                        setAckedLatestId(latestPendingId);
-                    }
-
-                    const ackedLatestId = getAckedLatestId();
-                    const hasUnacknowledgedPending = count > 0 && latestPendingId > ackedLatestId;
-
-                    if (hasUnacknowledgedPending || forceCrSoundTest) {
+                    const shouldPlaySound = forceCrSoundTest || (crSoundEnabled && shouldBugByPending);
+                    const nowMs = Date.now();
+                    if (shouldPlaySound && audioUnlocked && (nowMs - lastSoundPlayedAt >= soundCooldownMs)) {
+                        lastSoundPlayedAt = nowMs;
                         void playAlertSound();
                     }
 
-                    lastPolledLatestId = latestPendingId;
                     updateBadges(count);
                 } catch (e) {
                     // Silent fail; next poll will retry.
                 }
             };
 
-            if (isCrReportsPage && lastPolledLatestId > 0) {
-                setAckedLatestId(lastPolledLatestId);
-            }
-
             ['click', 'keydown', 'touchstart', 'pointerdown'].forEach((eventName) => {
                 window.addEventListener(eventName, () => { void unlockAudio(); }, { once: true, passive: true });
             });
-            window.addEventListener('focus', () => { void unlockAudio(); });
-            document.addEventListener('visibilitychange', () => {
-                if (!document.hidden) {
-                    void unlockAudio();
-                }
-            });
-
-            void unlockAudio();
             poll();
             setInterval(poll, pollIntervalMs);
         });

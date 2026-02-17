@@ -18,6 +18,12 @@
             @endif
         </p>
     </div>
+    @if($isAdmin)
+        <div class="flex flex-wrap items-center gap-2">
+            <a href="{{ route('leads.export.txt', request()->query()) }}" class="inline-flex justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">Download TXT</a>
+            <a href="{{ route('leads.export') }}" class="inline-flex justify-center rounded-md bg-slate-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-500">Download CSV</a>
+        </div>
+    @endif
 </div>
 
 <form method="GET" action="{{ route('leads.index') }}" class="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -245,10 +251,16 @@
                     <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">{{ $lead->assignedTo?->displayName() ?? '—' }}</td>
                     @endif
                     <td class="whitespace-nowrap px-4 py-3 text-right">
-                        <!-- <a href="{{ route('leads.edit', $lead) }}" class="rounded bg-sky-600 px-2 py-1 text-xs font-medium text-white hover:bg-sky-500">Edit</a> -->
-                        <a href="{{ route('leads.edit', $lead) }}" class="w-6 h-6 flex items-center justify-center text-blue-500 hover:text-blue-600 text-xs rounded-full transition-all cursor-pointer">
-                            <i class="fa-solid fa-pencil"></i>
-                        </a>
+                        <div class="flex items-center justify-end gap-2">
+                            @if($isAdmin)
+                                <a href="{{ route('leads.download.txt', $lead) }}" class="w-6 h-6 flex items-center justify-center text-indigo-500 hover:text-indigo-600 text-xs rounded-full transition-all cursor-pointer" title="Download TXT">
+                                    <i class="fa-solid fa-download"></i>
+                                </a>
+                            @endif
+                            <a href="{{ route('leads.edit', $lead) }}" class="w-6 h-6 flex items-center justify-center text-blue-500 hover:text-blue-600 text-xs rounded-full transition-all cursor-pointer" title="Edit">
+                                <i class="fa-solid fa-pencil"></i>
+                            </a>
+                        </div>
                     </td>
                 </tr>
                 @empty

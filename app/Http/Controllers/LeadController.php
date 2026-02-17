@@ -11,6 +11,7 @@ use App\Models\LeadPhone;
 use App\Models\Setting;
 use App\Models\Status;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -517,6 +518,54 @@ class LeadController extends Controller
         ]);
     }
 
+    public function exportTxt(Request $request): StreamedResponse
+    {
+        if (! auth()->user()->isAdmin()) {
+            abort(403);
+        }
+
+        $request->validate([
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date'],
+            'keyword' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'integer', 'exists:statuses,id'],
+            'dnc' => ['nullable', 'in:0,1'],
+        ]);
+
+        $query = Lead::with(['status', 'assignedTo', 'phones', 'emails', 'cards'])->latest('updated_at');
+        $this->applyAdminListFilters($query, $request);
+        $leads = $query->get();
+
+        return response()->streamDownload(function () use ($leads): void {
+            $out = fopen('php://output', 'w');
+            foreach ($leads as $index => $lead) {
+                fwrite($out, $this->buildLeadTxtPayload($lead));
+                if ($index < ($leads->count() - 1)) {
+                    fwrite($out, PHP_EOL . str_repeat('-', 70) . PHP_EOL . PHP_EOL);
+                }
+            }
+            fclose($out);
+        }, 'leads-export-' . now()->format('Ymd-His') . '.txt', [
+            'Content-Type' => 'text/plain; charset=UTF-8',
+        ]);
+    }
+
+    public function downloadLeadTxt(Lead $lead): StreamedResponse
+    {
+        if (! auth()->user()->isAdmin()) {
+            abort(403);
+        }
+
+        $lead->loadMissing(['status', 'assignedTo', 'phones', 'emails', 'cards']);
+        $safeName = trim(preg_replace('/[^A-Za-z0-9_-]+/', '-', $lead->fullName()) ?: 'lead');
+
+        return response()->streamDownload(function () use ($lead): void {
+            echo $this->buildLeadTxtPayload($lead);
+        }, 'lead-' . $safeName . '-' . $lead->id . '.txt', [
+            'Content-Type' => 'text/plain; charset=UTF-8',
+        ]);
+    }
+
     public function create(): View
     {
         if (! auth()->user()->isAdmin()) {
@@ -764,6 +813,120 @@ class LeadController extends Controller
             }
         }
         return $out;
+    }
+
+    private function applyAdminListFilters(Builder $query, Request $request): void
+    {
+        $newStatusId = $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG);
+
+        if ($request->filled('status')) {
+            $query->where('status_id', (int) $request->query('status'));
+        } else {
+            $query->where('status_id', '!=', $newStatusId);
+        }
+
+        if ($request->has('dnc') && in_array((string) $request->query('dnc'), ['0', '1'], true)) {
+            $query->where('is_dnc', $request->boolean('dnc'));
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('updated_at', '>=', (string) $request->query('date_from'));
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('updated_at', '<=', (string) $request->query('date_to'));
+        }
+
+        $keyword = trim((string) $request->query('keyword', ''));
+        if ($keyword !== '') {
+            $like = '%' . $keyword . '%';
+            $query->where(function (Builder $nested) use ($like): void {
+                $nested->where('first_name', 'like', $like)
+                    ->orWhere('last_name', 'like', $like)
+                    ->orWhereHas('phones', fn (Builder $phones) => $phones->where('phone', 'like', $like));
+            });
+        }
+    }
+
+    private function buildLeadTxtPayload(Lead $lead): string
+    {
+        $phones = $lead->phones->pluck('phone')->filter()->values();
+        $emails = $lead->emails->pluck('email')->filter()->values();
+        $cards = $lead->cards;
+        $commentLines = preg_split('/\r\n|\r|\n/', trim((string) ($lead->details ?? ''))) ?: [];
+        $firstCommentLine = array_shift($commentLines) ?: '';
+
+        $lines = [];
+        $lines[] = 'Name : ' . trim($lead->first_name . ' ' . $lead->last_name);
+        $lines[] = 'Phone : ' . ($phones->get(0) ?? '');
+        $lines[] = 'Alt Phone : ' . ($phones->get(1) ?? '');
+        $lines[] = 'Add : ' . ((string) ($lead->address ?? ''));
+        $lines[] = 'Dob : ' . ($lead->date_of_birth?->format('m/d/Y') ?? '');
+        $lines[] = 'Mmn : ' . ((string) ($lead->mothers_maiden_name ?? ''));
+        $lines[] = 'Ssn : ' . ((string) ($lead->ssn ?? ''));
+        $lines[] = 'Email : ' . ($emails->get(0) ?? '');
+        $lines[] = '';
+        $lines[] = 'Comment : ' . $firstCommentLine;
+        foreach ($commentLines as $line) {
+            $lines[] = $line;
+        }
+        $lines[] = '';
+        $lines[] = '';
+
+        $chargeAmount = 0.0;
+        foreach ($cards as $card) {
+            $bn = (string) ($card->bank_name ?? '');
+            if ($card->charge_card) {
+                $chargeLabel = $card->available_amount !== null
+                    ? '$' . $this->formatTxtNumber((float) $card->available_amount)
+                    : '';
+                $bn .= $chargeLabel !== '' ? " ( Charge Card {$chargeLabel} )" : ' ( Charge Card )';
+                if ($card->available_amount !== null) {
+                    $chargeAmount += (float) $card->available_amount;
+                }
+            }
+
+            $lines[] = 'BN : ' . $bn;
+            $lines[] = 'BT : ' . ((string) ($card->bank_tollfree ?? ''));
+            $lines[] = 'CC : ' . ((string) ($card->card_number ?? ''));
+            $lines[] = 'Exp : ' . ((string) ($card->card_expiry ?? ''));
+            $lines[] = 'Cvc : ' . ((string) ($card->card_cvc ?? ''));
+            $lines[] = '';
+            $lines[] = 'Bal : ' . $this->formatTxtNumber($card->balance);
+            $lines[] = 'Av : ' . $this->formatTxtNumber($card->available_amount);
+            $lines[] = 'Lp : ' . ((string) ($card->last_payment ?? ''));
+            $lines[] = 'Dp : ' . ((string) ($card->due_payment ?? ''));
+            $lines[] = 'Apr : ' . $this->formatTxtNumber($card->apr);
+            $lines[] = 'Comment : ' . ((string) ($card->comment ?? ''));
+            $lines[] = '';
+        }
+
+        $totalDebt = $lead->approx_debt;
+        if ($totalDebt === null) {
+            $totalDebt = (float) $cards->sum(fn ($card) => (float) ($card->balance ?? 0));
+        }
+
+        $lines[] = 'Tdebt : ' . $this->formatTxtNumber($totalDebt);
+        $lines[] = 'Tcards : ' . $cards->count();
+        $lines[] = 'Charge Amount : ' . $this->formatTxtNumber($chargeAmount > 0 ? $chargeAmount : null);
+        $lines[] = '';
+        $lines[] = 'Deal : ';
+
+        return implode(PHP_EOL, $lines) . PHP_EOL;
+    }
+
+    private function formatTxtNumber(float|int|string|null $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        $number = (float) $value;
+        if ($number === 0.0) {
+            return '0';
+        }
+
+        $formatted = number_format($number, 2, '.', ',');
+        return rtrim(rtrim($formatted, '0'), '.');
     }
 
     /**

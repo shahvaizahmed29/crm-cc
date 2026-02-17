@@ -35,6 +35,8 @@ Route::middleware('auth')->group(function (): void {
         Route::get('leads/import', [LeadController::class, 'importForm'])->name('leads.import.form');
         Route::post('leads/import', [LeadController::class, 'import'])->name('leads.import');
         Route::get('leads/export', [LeadController::class, 'export'])->name('leads.export');
+        Route::get('leads/export/txt', [LeadController::class, 'exportTxt'])->name('leads.export.txt');
+        Route::get('leads/{lead}/download/txt', [LeadController::class, 'downloadLeadTxt'])->name('leads.download.txt');
         Route::resource('users', UserController::class)->except(['show']);
     });
 

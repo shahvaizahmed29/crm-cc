@@ -13,6 +13,7 @@ class SettingsSeeder extends Seeder
     {
         $defaults = [
             'agent_history_limit' => '50',
+            'cr_sound_notifications_enabled' => '1',
             'holding_status_slugs' => json_encode([
                 'need-to-reconnect',
                 'callback',

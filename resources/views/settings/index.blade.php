@@ -98,6 +98,26 @@
         @enderror
     </div>
 
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">CR notification sound</h2>
+        <p class="mt-1 text-sm text-slate-500">Enable or disable CR alert tone in admin navbar polling.</p>
+        <div class="mt-3 flex items-center gap-3">
+            <input type="hidden" name="cr_sound_notifications_enabled" value="0">
+            <input
+                type="checkbox"
+                name="cr_sound_notifications_enabled"
+                id="cr_sound_notifications_enabled"
+                value="1"
+                {{ old('cr_sound_notifications_enabled', $crSoundNotificationsEnabled ? '1' : '0') === '1' ? 'checked' : '' }}
+                class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+            >
+            <label for="cr_sound_notifications_enabled" class="text-sm font-medium text-slate-700">Play CR alert sound notifications</label>
+        </div>
+        @error('cr_sound_notifications_enabled')
+            <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
+        @enderror
+    </div>
+
     <div>
         <button type="submit" class="inline-flex justify-center rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-500">Save settings</button>
     </div>
