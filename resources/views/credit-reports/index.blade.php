@@ -47,7 +47,7 @@
                                     <option value="sent">Sent</option>
                                     <option value="notfound">Not Found</option>
                                 </select>
-                                <input type="file" name="cr_file" accept=".pdf" class="block text-xs">
+                                <input type="file" name="cr_file" accept=".pdf" class="block text-xs rounded-md border border-slate-300 cursor-pointer bg-slate-100 px-2.5 py-1.5">
                                 <input type="text" name="comment" placeholder="Comment" class="rounded-md border border-slate-300 px-2 py-1 text-xs">
                                 <button type="submit" class="rounded bg-sky-600 px-2 py-1 text-xs font-medium text-white hover:bg-sky-500">Update</button>
                             </form>

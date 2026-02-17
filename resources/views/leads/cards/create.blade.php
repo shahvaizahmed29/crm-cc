@@ -9,7 +9,7 @@
     </x-slot:actions>
 </x-page-header>
 
-<form action="{{ route('leads.cards.store', $lead) }}" method="POST" class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+<form action="{{ route('leads.cards.store', $lead) }}" method="POST" class="js-card-form mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
     @csrf
     <x-form-field label="Bank Name" for="bank_name">
         <x-input id="bank_name" name="bank_name" type="text" :value="old('bank_name')" />
@@ -65,4 +65,106 @@
         <button type="submit" class="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-sky-500">Save Card</button>
     </div>
 </form>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    if (!window.jQuery || typeof jQuery.fn.validateCreditCard !== 'function') {
+        return;
+    }
+
+    jQuery('.js-card-form').each(function () {
+        const $form = jQuery(this);
+        const $number = $form.find('input[name="card_number"]');
+        const $expiry = $form.find('input[name="card_expiry"]');
+        const $cvc = $form.find('input[name="card_cvc"]');
+        const $submit = $form.find('button[type="submit"]').first();
+
+        if (!$number.length) {
+            return;
+        }
+
+        const ensureFeedback = function ($input) {
+            let $feedback = $input.siblings('.js-field-feedback');
+            if (!$feedback.length) {
+                $feedback = jQuery('<p class="js-field-feedback mt-1 text-xs"></p>');
+                $input.after($feedback);
+            }
+            return $feedback;
+        };
+
+        const $numberFeedback = ensureFeedback($number);
+        const $expiryFeedback = ensureFeedback($expiry);
+        const $cvcFeedback = ensureFeedback($cvc);
+
+        const isExpiryValid = function (value) {
+            if (!value) return true;
+            const match = value.match(/^(0[1-9]|1[0-2])\s*\/\s*(\d{2}|\d{4})$/);
+            if (!match) return false;
+            const month = parseInt(match[1], 10);
+            let year = parseInt(match[2], 10);
+            if (match[2].length === 2) year += 2000;
+            const now = new Date();
+            const expiry = new Date(year, month, 0, 23, 59, 59);
+            return expiry >= now;
+        };
+
+        const isCvcValid = function (value, cardTypeName) {
+            if (!value) return true;
+            if (!/^\d{3,4}$/.test(value)) return false;
+            if (cardTypeName === 'amex') return value.length === 4;
+            return value.length === 3;
+        };
+
+        const updateState = function (cardResult) {
+            const rawNumber = ($number.val() || '').toString().replace(/\s|-/g, '');
+            const rawExpiry = ($expiry.val() || '').toString().trim();
+            const rawCvc = ($cvc.val() || '').toString().trim();
+            const hasNumber = rawNumber.length > 0;
+            const numberOk = !hasNumber || !!(cardResult && cardResult.valid);
+            const cardName = cardResult && cardResult.card_type ? cardResult.card_type.name : null;
+            const expiryOk = isExpiryValid(rawExpiry);
+            const cvcOk = isCvcValid(rawCvc, cardName);
+            const formOk = numberOk && expiryOk && cvcOk;
+
+            if (hasNumber) {
+                if (numberOk) {
+                    $numberFeedback.attr('class', 'js-field-feedback mt-1 text-xs text-emerald-600').text('Card number looks valid.');
+                } else {
+                    $numberFeedback.attr('class', 'js-field-feedback mt-1 text-xs text-red-600').text('Invalid card number.');
+                }
+            } else {
+                $numberFeedback.attr('class', 'js-field-feedback mt-1 text-xs text-slate-500').text('Enter card number to validate.');
+            }
+
+            if (!rawExpiry) {
+                $expiryFeedback.attr('class', 'js-field-feedback mt-1 text-xs text-slate-500').text('Format: MM/YY');
+            } else if (expiryOk) {
+                $expiryFeedback.attr('class', 'js-field-feedback mt-1 text-xs text-emerald-600').text('Expiry looks valid.');
+            } else {
+                $expiryFeedback.attr('class', 'js-field-feedback mt-1 text-xs text-red-600').text('Invalid or expired date. Use MM/YY.');
+            }
+
+            if (!rawCvc) {
+                $cvcFeedback.attr('class', 'js-field-feedback mt-1 text-xs text-slate-500').text('Use 3 digits (4 for Amex).');
+            } else if (cvcOk) {
+                $cvcFeedback.attr('class', 'js-field-feedback mt-1 text-xs text-emerald-600').text('CVC looks valid.');
+            } else {
+                $cvcFeedback.attr('class', 'js-field-feedback mt-1 text-xs text-red-600').text('Invalid CVC.');
+            }
+
+            $submit.prop('disabled', !formOk).toggleClass('opacity-60 cursor-not-allowed', !formOk);
+        };
+
+        $number.validateCreditCard(function (result) {
+            updateState(result);
+        });
+
+        $expiry.on('input blur', function () { updateState($number.validateCreditCard()); });
+        $cvc.on('input blur', function () { updateState($number.validateCreditCard()); });
+        updateState($number.validateCreditCard());
+    });
+});
+</script>
+@endpush
 @endsection

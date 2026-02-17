@@ -43,18 +43,18 @@ class CreditReportController extends Controller
         $this->authorizeLeadAccess($lead);
 
         if (! $this->leadHasCrMinimumData($lead)) {
-            return back()->with('error', 'Phone, first name, last name, and address are required before CR request.');
+            return redirect()->route('leads.edit', $lead)->with('error', 'Phone, first name, last name, and address are required before CR request.');
         }
 
         $existing = $lead->creditReports()->latest()->first();
         if ($existing && in_array($existing->status, [CreditReport::STATUS_PENDING, CreditReport::STATUS_RECHECK], true)) {
-            return back()->with('error', 'CR already requested. Please wait.');
+            return redirect()->route('leads.edit', $lead)->with('error', 'CR already requested. Please wait.');
         }
         if ($existing && $existing->status === CreditReport::STATUS_NOT_FOUND) {
-            return back()->with('error', $existing->comment ?: 'CR not found previously. Use Re-check.');
+            return redirect()->route('leads.edit', $lead)->with('error', $existing->comment ?: 'CR not found previously. Use Re-check.');
         }
         if ($existing && $existing->status === CreditReport::STATUS_SENT && $existing->report_file_path && Storage::exists($existing->report_file_path)) {
-            return back()->with('success', 'CR already available. Use Get Report.');
+            return redirect()->route('leads.edit', $lead)->with('success', 'CR already available. Use Get Report.');
         }
 
         CreditReport::create([
@@ -65,7 +65,7 @@ class CreditReportController extends Controller
             'requested_at' => now(),
         ]);
 
-        return back()->with('success', 'CR request sent.');
+        return redirect()->route('leads.edit', $lead)->with('success', 'CR request sent.');
     }
 
     public function recheck(Lead $lead): RedirectResponse
@@ -74,16 +74,16 @@ class CreditReportController extends Controller
 
         $existing = $lead->creditReports()->latest()->first();
         if (! $existing) {
-            return back()->with('error', 'No CR request found for this lead.');
+            return redirect()->route('leads.edit', $lead)->with('error', 'No CR request found for this lead.');
         }
         if ($existing->status === CreditReport::STATUS_RECHECK) {
-            return back()->with('error', 'CR request is already in re-check.');
+            return redirect()->route('leads.edit', $lead)->with('error', 'CR request is already in re-check.');
         }
         if ($existing->status === CreditReport::STATUS_PENDING) {
-            return back()->with('error', 'CR request is already pending.');
+            return redirect()->route('leads.edit', $lead)->with('error', 'CR request is already pending.');
         }
         if ($existing->status !== CreditReport::STATUS_NOT_FOUND) {
-            return back()->with('error', 'Re-check is only available for Not Found reports.');
+            return redirect()->route('leads.edit', $lead)->with('error', 'Re-check is only available for Not Found reports.');
         }
 
         $existing->update([
@@ -93,7 +93,7 @@ class CreditReportController extends Controller
             'requested_at' => now(),
         ]);
 
-        return back()->with('success', 'CR re-check request sent.');
+        return redirect()->route('leads.edit', $lead)->with('success', 'CR re-check request sent.');
     }
 
     public function uploadResult(Request $request, CreditReport $creditReport): RedirectResponse
@@ -157,12 +157,15 @@ class CreditReportController extends Controller
     {
         $this->abortUnlessAdmin();
 
-        $count = CreditReport::query()
-            ->whereIn('status', [CreditReport::STATUS_PENDING, CreditReport::STATUS_RECHECK])
-            ->count();
+        $pendingQuery = CreditReport::query()
+            ->whereIn('status', [CreditReport::STATUS_PENDING, CreditReport::STATUS_RECHECK]);
+
+        $count = (clone $pendingQuery)->count();
+        $latestPendingId = (int) ((clone $pendingQuery)->max('id') ?? 0);
 
         return response()->json([
             'count' => $count,
+            'latest_pending_id' => $latestPendingId,
         ]);
     }
 

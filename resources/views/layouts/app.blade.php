@@ -8,6 +8,8 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
     <style>
         [x-cloak] { display: none !important; }
     </style>
@@ -17,7 +19,7 @@
         class="sticky top-0 z-40 border-b border-slate-200/80 bg-slate-900/95 text-white shadow-lg backdrop-blur"
         x-data="{ mobileMenuOpen: false }"
     >
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="mx-auto max-w-360 px-4 sm:px-6 lg:px-8">
             <div class="flex h-16 items-center justify-between gap-3 md:h-18">
                 <div class="flex min-w-0 items-center gap-3">
                     <button
@@ -53,31 +55,12 @@
                     <a href="{{ route('reports.sales') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('reports.sales') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Sales</a>
                     <a href="{{ route('users.index') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('users.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Users</a>
                     <a href="{{ route('settings.index') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('settings.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Settings</a>
-                    <div
-                        x-data="{
-                            pollIntervalMs: {{ (int) config('crm.cr_nav_poll_interval_ms', 15000) }},
-                            pendingCount: 0,
-                            poll() {
-                                fetch('{{ route('credit-reports.pending-count') }}', { headers: { 'Accept': 'application/json' } })
-                                    .then((response) => response.ok ? response.json() : null)
-                                    .then((data) => {
-                                        if (data && typeof data.count !== 'undefined') {
-                                            this.pendingCount = Number(data.count) || 0;
-                                        }
-                                    })
-                                    .catch(() => {});
-                            }
-                        }"
-                        x-init="poll(); setInterval(() => poll(), pollIntervalMs)"
-                        class="relative"
-                    >
-                        <a href="{{ route('credit-reports.index') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('credit-reports.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
-                            CR Reports
-                            <span x-cloak x-show="pendingCount > 0" class="ml-1 inline-flex items-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                                <span class="mr-1">🔔</span><span x-text="pendingCount"></span>
-                            </span>
-                        </a>
-                    </div>
+                    <a href="{{ route('credit-reports.index') }}" class="relative shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('credit-reports.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
+                        CR Reports
+                        <span class="js-cr-pending-badge ml-1 hidden items-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                            <span class="mr-1">🔔</span><span class="js-cr-pending-count">0</span>
+                        </span>
+                    </a>
                     @endif
                 </nav>
 
@@ -113,14 +96,19 @@
                     <a href="{{ route('reports.sales') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('reports.sales') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Sales</a>
                     <a href="{{ route('users.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('users.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Users</a>
                     <a href="{{ route('settings.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('settings.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Settings</a>
-                    <a href="{{ route('credit-reports.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('credit-reports.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">CR Reports</a>
+                    <a href="{{ route('credit-reports.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('credit-reports.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
+                        CR Reports
+                        <span class="js-cr-pending-badge ml-1 hidden items-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                            <span class="mr-1">🔔</span><span class="js-cr-pending-count">0</span>
+                        </span>
+                    </a>
                     @endif
                 </nav>
             </div>
         </div>
     </header>
 
-    <main class="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
+    <main class="mx-auto w-full max-w-360 px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
         @if(session('success'))
             <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-sm">{{ session('success') }}</div>
         @endif
@@ -144,6 +132,211 @@
             &copy; {{ date('Y') }} Call Center CRM
         </div>
     </footer>
+    <script defer src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script defer src="{{ asset('js/jquery.creditCardValidator.js') }}"></script>
+    @if(auth()->user()->isAdmin())
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const pollIntervalMs = 3000;
+            const endpoint = '{{ route('credit-reports.pending-count') }}';
+            const alertSoundUrl = '{{ asset('sounds/notification.wav') }}';
+            const isCrReportsPage = {{ request()->routeIs('credit-reports.*') ? 'true' : 'false' }};
+            const ackStorageKey = 'cr_pending_ack_latest_id';
+            // Testing toggle: set true to force beep every poll cycle.
+            const forceCrSoundTest = true;
+            let audioContext = null;
+            let audioUnlocked = false;
+            let lastPolledLatestId = 0;
+            let alertAudio = null;
+
+            const updateBadges = (count) => {
+                const badges = document.querySelectorAll('.js-cr-pending-badge');
+                const counts = document.querySelectorAll('.js-cr-pending-count');
+                counts.forEach((el) => {
+                    el.textContent = String(count);
+                });
+                badges.forEach((badge) => {
+                    if (count > 0) {
+                        badge.classList.remove('hidden');
+                        badge.classList.add('inline-flex');
+                    } else {
+                        badge.classList.add('hidden');
+                        badge.classList.remove('inline-flex');
+                    }
+                });
+            };
+
+            const playFallbackTone = async () => {
+                try {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (!AudioCtx) {
+                        return false;
+                    }
+
+                    if (!audioContext) {
+                        audioContext = new AudioCtx();
+                    }
+                    if (audioContext.state === 'suspended') {
+                        await audioContext.resume();
+                    }
+
+                    const now = audioContext.currentTime;
+                    const beep = (startAt, freq) => {
+                        const osc = audioContext.createOscillator();
+                        const gain = audioContext.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, startAt);
+                        gain.gain.setValueAtTime(0.0001, startAt);
+                        gain.gain.exponentialRampToValueAtTime(0.08, startAt + 0.02);
+                        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.22);
+                        osc.connect(gain);
+                        gain.connect(audioContext.destination);
+                        osc.start(startAt);
+                        osc.stop(startAt + 0.24);
+                    };
+
+                    // Double beep to make notification obvious.
+                    beep(now, 920);
+                    beep(now + 0.28, 1040);
+                    return true;
+                } catch (e) {
+                    // Ignore browser autoplay/audio context limitations.
+                    return false;
+                }
+            };
+
+            const ensureAlertAudio = () => {
+                if (alertAudio) {
+                    return alertAudio;
+                }
+
+                const audio = new Audio(alertSoundUrl);
+                audio.preload = 'auto';
+                audio.volume = 1;
+                alertAudio = audio;
+
+                return alertAudio;
+            };
+
+            const playAlertSound = async () => {
+                if (!audioUnlocked) {
+                    await unlockAudio();
+                }
+
+                const audio = ensureAlertAudio();
+                if (audio) {
+                    try {
+                        audio.pause();
+                        audio.currentTime = 0;
+                        await audio.play();
+                        return true;
+                    } catch (e) {
+                        // Fall back to generated tone if file playback fails.
+                    }
+                }
+
+                return playFallbackTone();
+            };
+
+            const unlockAudio = async () => {
+                try {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    let unlocked = false;
+
+                    if (AudioCtx) {
+                        if (!audioContext) {
+                            audioContext = new AudioCtx();
+                        }
+                        if (audioContext.state === 'suspended') {
+                            await audioContext.resume();
+                        }
+                        unlocked = audioContext.state === 'running';
+                    }
+
+                    const audio = ensureAlertAudio();
+                    if (audio) {
+                        try {
+                            audio.pause();
+                            audio.currentTime = 0;
+                            await audio.play();
+                            audio.pause();
+                            audio.currentTime = 0;
+                            unlocked = true;
+                        } catch (e) {
+                            // Ignore; fallback tone may still work after interaction.
+                        }
+                    }
+
+                    audioUnlocked = unlocked;
+                } catch (e) {
+                    // Ignore; browser may still require another interaction.
+                }
+            };
+
+            const getAckedLatestId = () => {
+                const raw = window.localStorage.getItem(ackStorageKey);
+                const parsed = Number(raw ?? 0);
+                return Number.isFinite(parsed) ? parsed : 0;
+            };
+
+            const setAckedLatestId = (id) => {
+                window.localStorage.setItem(ackStorageKey, String(Math.max(0, id)));
+            };
+
+            const poll = async () => {
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'GET',
+                        headers: { 'Accept': 'application/json' },
+                        credentials: 'same-origin',
+                    });
+                    if (!response.ok) {
+                        return;
+                    }
+
+                    const data = await response.json();
+                    const count = Number(data?.count ?? 0) || 0;
+                    const latestPendingId = Number(data?.latest_pending_id ?? 0) || 0;
+
+                    if (isCrReportsPage) {
+                        setAckedLatestId(latestPendingId);
+                    }
+
+                    const ackedLatestId = getAckedLatestId();
+                    const hasUnacknowledgedPending = count > 0 && latestPendingId > ackedLatestId;
+
+                    if (hasUnacknowledgedPending || forceCrSoundTest) {
+                        void playAlertSound();
+                    }
+
+                    lastPolledLatestId = latestPendingId;
+                    updateBadges(count);
+                } catch (e) {
+                    // Silent fail; next poll will retry.
+                }
+            };
+
+            if (isCrReportsPage && lastPolledLatestId > 0) {
+                setAckedLatestId(lastPolledLatestId);
+            }
+
+            ['click', 'keydown', 'touchstart', 'pointerdown'].forEach((eventName) => {
+                window.addEventListener(eventName, () => { void unlockAudio(); }, { once: true, passive: true });
+            });
+            window.addEventListener('focus', () => { void unlockAudio(); });
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    void unlockAudio();
+                }
+            });
+
+            void unlockAudio();
+            poll();
+            setInterval(poll, pollIntervalMs);
+        });
+    </script>
+    @endif
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    @stack('scripts')
 </body>
 </html>

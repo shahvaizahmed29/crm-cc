@@ -79,7 +79,7 @@
                         <option value="sent">Sent</option>
                         <option value="notfound">Not Found</option>
                     </select>
-                    <input type="file" name="cr_file" accept=".pdf" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                    <input type="file" name="cr_file" accept=".pdf" class="rounded-md border border-slate-300 bg-slate-100 cursor-pointer px-3 py-2 text-sm">
                     <input type="text" name="comment" placeholder="Comment" class="rounded-md border border-slate-300 px-3 py-2 text-sm">
                     <button type="submit" class="rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500">Update CR</button>
                 </form>

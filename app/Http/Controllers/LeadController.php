@@ -52,6 +52,7 @@ class LeadController extends Controller
         $request->validate([
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date'],
+            'keyword' => ['nullable', 'string', 'max:100'],
         ]);
 
         $query = Lead::with(['status', 'assignedTo', 'phones', 'emails']);
@@ -93,6 +94,19 @@ class LeadController extends Controller
 
         if ($request->filled('date_to')) {
             $query->whereDate('updated_at', '<=', $request->date_to);
+        }
+
+        $keyword = trim((string) $request->query('keyword', ''));
+        if ($keyword !== '') {
+            $query->where(function ($q) use ($keyword): void {
+                $like = '%' . $keyword . '%';
+
+                $q->where('first_name', 'like', $like)
+                    ->orWhere('last_name', 'like', $like)
+                    ->orWhereHas('phones', function ($phones) use ($like): void {
+                        $phones->where('phone', 'like', $like);
+                    });
+            });
         }
 
         if ($isAdmin && ! $request->filled('status')) {
@@ -242,12 +256,14 @@ class LeadController extends Controller
     public function importForm(): View
     {
         $statuses = Status::orderBy('name')->get();
+        $defaultStatusId = $statuses->firstWhere('slug', self::ACTIVE_STATUS_SLUG)?->id
+            ?? $statuses->first()?->id;
         $importHistories = LeadImportHistory::with(['uploadedBy', 'defaultStatus'])
             ->latest()
             ->limit(30)
             ->get();
 
-        return view('leads.import', compact('statuses', 'importHistories'));
+        return view('leads.import', compact('statuses', 'importHistories', 'defaultStatusId'));
     }
 
     public function downloadSampleCsv(): BinaryFileResponse|StreamedResponse
@@ -262,34 +278,34 @@ class LeadController extends Controller
         return response()->streamDownload(function () {
             $out = fopen('php://output', 'w');
             fputcsv($out, [
-                'first_name',
-                'last_name',
-                'status',
-                'address',
-                'date_of_birth',
-                'mothers_maiden_name',
+                'F name',
+                'M name',
+                'L name',
+                'Address',
+                'city',
+                'state',
+                'zip',
                 'ssn',
-                'approx_debt',
-                'details',
-                'is_dnc',
-                'phone',
-                'email',
-                'assigned_to',
+                'Dob',
+                'Debt',
+                'phone1',
+                'phone2',
+                'phone3',
             ]);
             fputcsv($out, [
                 'John',
+                'A',
                 'Doe',
-                'new',
-                '123 Main St, Dallas',
-                '1988-04-12',
-                'Smith',
+                '123 Main St',
+                'Dallas',
+                'TX',
+                '75001',
                 '111-22-3333',
+                '1988-04-12',
                 '12000.50',
-                'Sample lead imported from CSV',
-                '0',
                 '5551234567',
-                'john.doe@example.com',
-                'agent10',
+                '5551234568',
+                '',
             ]);
             fclose($out);
         }, 'leads-sample.csv', [
@@ -300,7 +316,7 @@ class LeadController extends Controller
     public function import(Request $request): RedirectResponse
     {
         $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt', 'max:10240'],
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx', 'max:10240'],
             'default_status_id' => ['required', 'exists:statuses,id'],
         ]);
 
@@ -329,23 +345,22 @@ class LeadController extends Controller
             'failed_rows' => 0,
         ]);
 
-        $handle = fopen($file->getRealPath(), 'r');
-        if ($handle === false) {
-            return back()->with('error', 'Could not read the uploaded file.');
+        try {
+            [$header, $rows] = $this->extractImportRows((string) $file->getRealPath(), $extension);
+        } catch (\Throwable) {
+            return back()->with('error', 'Could not read the uploaded file. Please upload a valid CSV/XLSX.');
         }
 
-        $header = fgetcsv($handle);
-        if ($header === false) {
-            fclose($handle);
-            return back()->with('error', 'CSV file is empty.');
+        if ($header === []) {
+            return back()->with('error', 'Uploaded file is empty.');
         }
-        $header = array_map('trim', $header);
+
         $created = 0;
         $errors = [];
         $failedRows = [];
         $totalRows = 0;
 
-        while (($row = fgetcsv($handle)) !== false) {
+        foreach ($rows as $row) {
             $row = array_pad($row, count($header), '');
             $data = array_combine($header, $row);
             if ($data === false) {
@@ -363,8 +378,11 @@ class LeadController extends Controller
             }
             $totalRows++;
 
-            $firstName = $this->getCsvColumn($data, ['first_name', 'firstname']);
-            $lastName = $this->getCsvColumn($data, ['last_name', 'lastname']);
+            $firstName = $this->getCsvColumn($data, ['first_name', 'firstname', 'f name', 'f_name', 'fname']);
+            $middleName = $this->getCsvColumn($data, ['middle_name', 'middlename', 'm name', 'm_name', 'mname']);
+            $lastName = $this->getCsvColumn($data, ['last_name', 'lastname', 'l name', 'l_name', 'lname']);
+
+            $firstName = trim($firstName . ($middleName !== '' ? ' ' . $middleName : ''));
             if ($firstName === '' || $lastName === '') {
                 $reason = 'Missing first_name or last_name.';
                 $errors[] = $reason . ' Row: ' . implode(', ', $row);
@@ -377,34 +395,38 @@ class LeadController extends Controller
 
             $statusId = $this->resolveStatusFromCsv($data, $defaultStatusId);
             $assignedTo = $this->resolveAssignedToFromCsv($data);
+            $details = $this->getCsvColumn($data, ['details', 'notes', 'comment', 'comments']);
+            $details = trim($details);
+            if ($middleName !== '') {
+                $details = $details !== ''
+                    ? $details . ' | Middle Name: ' . $middleName
+                    : 'Middle Name: ' . $middleName;
+            }
 
             try {
-                DB::transaction(function () use ($data, $firstName, $lastName, $statusId, $assignedTo, &$created) {
+                DB::transaction(function () use ($data, $firstName, $lastName, $statusId, $assignedTo, $details, &$created) {
                     $lead = Lead::create([
                         'first_name' => $firstName,
                         'last_name' => $lastName,
-                        'address' => $this->getCsvColumn($data, ['address']),
-                        'date_of_birth' => $this->parseDate($this->getCsvColumn($data, ['date_of_birth', 'dob'])),
+                        'address' => $this->buildAddressFromCsv($data),
+                        'date_of_birth' => $this->parseDate($this->getCsvColumn($data, ['date_of_birth', 'dob', 'date of birth'])),
                         'mothers_maiden_name' => $this->getCsvColumn($data, ['mothers_maiden_name', 'mmn']),
                         'ssn' => $this->getCsvColumn($data, ['ssn']),
                         'approx_debt' => $this->parseDecimal($this->getCsvColumn($data, ['approx_debt', 'debt'])),
-                        'details' => $this->getCsvColumn($data, ['details', 'notes']),
+                        'details' => $details !== '' ? $details : null,
                         'is_dnc' => $this->parseBoolean($this->getCsvColumn($data, ['is_dnc', 'dnc'])),
                         'status_id' => $statusId,
                         'assigned_to' => $assignedTo,
                     ]);
-                    $phone = $this->getCsvColumn($data, ['phone', 'phones']);
-                    if ($phone !== '') {
-                        foreach ($this->normalizeLines([$phone]) as $p) {
-                            $lead->phones()->create(['phone' => $p]);
-                        }
+
+                    foreach ($this->normalizeLines($this->csvPhonesFromData($data)) as $p) {
+                        $lead->phones()->create(['phone' => $p]);
                     }
-                    $email = $this->getCsvColumn($data, ['email', 'emails']);
-                    if ($email !== '') {
-                        foreach ($this->normalizeLines([$email]) as $e) {
-                            $lead->emails()->create(['email' => $e]);
-                        }
+
+                    foreach ($this->normalizeLines($this->csvEmailsFromData($data)) as $e) {
+                        $lead->emails()->create(['email' => $e]);
                     }
+
                     $created++;
                 });
             } catch (\Throwable $e) {
@@ -416,7 +438,6 @@ class LeadController extends Controller
                 ];
             }
         }
-        fclose($handle);
 
         $failedPath = null;
         if (! empty($failedRows)) {
@@ -574,7 +595,7 @@ class LeadController extends Controller
             'note' => $validated['note'],
         ]);
 
-        return back()->with('success', 'Note added successfully.');
+        return redirect()->route('leads.edit', $lead)->with('success', 'Note added successfully.');
     }
 
     public function createCard(Lead $lead): View
@@ -596,7 +617,7 @@ class LeadController extends Controller
             'updated_by' => auth()->id(),
         ]);
 
-        return redirect()->route('leads.show', $lead)->with('success', 'Card added successfully.');
+        return redirect()->route('leads.edit', $lead)->with('success', 'Card added successfully.');
     }
 
     public function editCard(Lead $lead, LeadCard $card): View
@@ -619,7 +640,7 @@ class LeadController extends Controller
             'updated_by' => auth()->id(),
         ]);
 
-        return redirect()->route('leads.show', $lead)->with('success', 'Card updated successfully.');
+        return redirect()->route('leads.edit', $lead)->with('success', 'Card updated successfully.');
     }
 
     public function destroyCard(Lead $lead, LeadCard $card): RedirectResponse
@@ -628,7 +649,7 @@ class LeadController extends Controller
         $this->assertCardBelongsToLead($lead, $card);
         $card->delete();
 
-        return redirect()->route('leads.show', $lead)->with('success', 'Card deleted successfully.');
+        return redirect()->route('leads.edit', $lead)->with('success', 'Card deleted successfully.');
     }
 
     public function edit(Lead $lead): View
@@ -693,7 +714,7 @@ class LeadController extends Controller
             $lead->emails()->create(['email' => $email]);
         }
 
-        return redirect()->route('leads.show', $lead)->with('success', 'Lead updated successfully.');
+        return redirect()->route('leads.edit', $lead)->with('success', 'Lead updated successfully.');
     }
 
     public function destroy(Lead $lead): RedirectResponse
@@ -745,14 +766,183 @@ class LeadController extends Controller
         return $out;
     }
 
-    private function getCsvColumn(array $data, array $possibleKeys): string
+    /**
+     * @return array{0: array<int, string>, 1: array<int, array<int, string>>}
+     */
+    private function extractImportRows(string $path, string $extension): array
     {
-        foreach ($possibleKeys as $key) {
-            if (isset($data[$key]) && (string) $data[$key] !== '') {
-                return (string) $data[$key];
+        if ($extension === 'xlsx') {
+            return $this->readXlsxRows($path);
+        }
+
+        return $this->readCsvRows($path);
+    }
+
+    /**
+     * @return array{0: array<int, string>, 1: array<int, array<int, string>>}
+     */
+    private function readCsvRows(string $path): array
+    {
+        $handle = fopen($path, 'r');
+        if ($handle === false) {
+            throw new \RuntimeException('Unable to open CSV file.');
+        }
+
+        $header = fgetcsv($handle);
+        if (! is_array($header)) {
+            fclose($handle);
+            return [[], []];
+        }
+
+        $header = array_map(fn ($value) => trim((string) $value), $header);
+        $rows = [];
+        while (($row = fgetcsv($handle)) !== false) {
+            $rows[] = array_map(fn ($value) => trim((string) $value), $row);
+        }
+
+        fclose($handle);
+
+        return [$header, $rows];
+    }
+
+    /**
+     * @return array{0: array<int, string>, 1: array<int, array<int, string>>}
+     */
+    private function readXlsxRows(string $path): array
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($path) !== true) {
+            throw new \RuntimeException('Unable to open XLSX file.');
+        }
+
+        $sharedStrings = [];
+        $sharedXmlRaw = $zip->getFromName('xl/sharedStrings.xml');
+        if (is_string($sharedXmlRaw) && $sharedXmlRaw !== '') {
+            $sharedXml = simplexml_load_string($sharedXmlRaw);
+            if ($sharedXml !== false) {
+                foreach ($sharedXml->si as $item) {
+                    if (isset($item->t)) {
+                        $sharedStrings[] = trim((string) $item->t);
+                        continue;
+                    }
+
+                    $text = '';
+                    foreach ($item->r as $run) {
+                        $text .= (string) $run->t;
+                    }
+                    $sharedStrings[] = trim($text);
+                }
             }
         }
+
+        $sheetRaw = $zip->getFromName('xl/worksheets/sheet1.xml');
+        if (! is_string($sheetRaw) || $sheetRaw === '') {
+            $zip->close();
+            throw new \RuntimeException('XLSX first sheet not found.');
+        }
+
+        $sheetXml = simplexml_load_string($sheetRaw);
+        if ($sheetXml === false) {
+            $zip->close();
+            throw new \RuntimeException('Invalid XLSX sheet XML.');
+        }
+
+        $sheetXml->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+        $rowsXml = $sheetXml->xpath('//m:sheetData/m:row') ?: [];
+        $zip->close();
+
+        $rows = [];
+        foreach ($rowsXml as $rowXml) {
+            $cells = $rowXml->xpath('./m:c') ?: [];
+            $line = [];
+            foreach ($cells as $cell) {
+                $cellType = (string) ($cell['t'] ?? '');
+                $valueNode = $cell->xpath('./m:v');
+                $rawValue = isset($valueNode[0]) ? trim((string) $valueNode[0]) : '';
+
+                if ($cellType === 's' && $rawValue !== '') {
+                    $line[] = $sharedStrings[(int) $rawValue] ?? '';
+                    continue;
+                }
+
+                $line[] = $rawValue;
+            }
+            $rows[] = $line;
+        }
+
+        if ($rows === []) {
+            return [[], []];
+        }
+
+        $header = array_map(fn ($value) => trim((string) $value), (array) array_shift($rows));
+        $rows = array_map(
+            fn ($row) => array_map(fn ($value) => trim((string) $value), (array) $row),
+            $rows
+        );
+
+        return [$header, $rows];
+    }
+
+    private function normalizeCsvKey(string $key): string
+    {
+        return (string) preg_replace('/[^a-z0-9]+/i', '', strtolower(trim($key)));
+    }
+
+    private function getCsvColumn(array $data, array $possibleKeys): string
+    {
+        $normalizedData = [];
+        foreach ($data as $key => $value) {
+            $normalizedData[$this->normalizeCsvKey((string) $key)] = trim((string) $value);
+        }
+
+        foreach ($possibleKeys as $key) {
+            $normalizedKey = $this->normalizeCsvKey((string) $key);
+            if (isset($normalizedData[$normalizedKey]) && $normalizedData[$normalizedKey] !== '') {
+                return $normalizedData[$normalizedKey];
+            }
+        }
+
         return '';
+    }
+
+    private function buildAddressFromCsv(array $data): string
+    {
+        $address = $this->getCsvColumn($data, ['address', 'street_address', 'street']);
+        $city = $this->getCsvColumn($data, ['city']);
+        $state = $this->getCsvColumn($data, ['state']);
+        $zip = $this->getCsvColumn($data, ['zip', 'zipcode', 'postal_code']);
+
+        $location = trim(implode(', ', array_filter([$city, $state, $zip], fn ($value) => $value !== '')));
+
+        if ($address === '') {
+            return $location;
+        }
+
+        if ($location === '') {
+            return $address;
+        }
+
+        return $address . ', ' . $location;
+    }
+
+    /** @return array<int, string> */
+    private function csvPhonesFromData(array $data): array
+    {
+        return array_values(array_filter([
+            $this->getCsvColumn($data, ['phone', 'phones', 'phone1']),
+            $this->getCsvColumn($data, ['phone2']),
+            $this->getCsvColumn($data, ['phone3']),
+        ], fn ($value) => $value !== ''));
+    }
+
+    /** @return array<int, string> */
+    private function csvEmailsFromData(array $data): array
+    {
+        return array_values(array_filter([
+            $this->getCsvColumn($data, ['email', 'emails', 'email1']),
+            $this->getCsvColumn($data, ['email2']),
+            $this->getCsvColumn($data, ['email3']),
+        ], fn ($value) => $value !== ''));
     }
 
     private function rowHasAnyValue(array $row): bool
