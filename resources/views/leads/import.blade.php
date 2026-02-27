@@ -5,7 +5,7 @@
 @section('content')
 <x-page-header title="Import Leads (CSV/XLSX)" :back-url="route('leads.index')" back-text="Back to list" />
 
-<p class="mt-1 text-sm text-slate-600">Upload a CSV/XLSX file. The first row should be headers. Supported template columns: <strong>F name</strong>, <strong>M name</strong>, <strong>L name</strong>, <strong>Address</strong>, <strong>city</strong>, <strong>state</strong>, <strong>zip</strong>, <strong>ssn</strong>, <strong>Dob</strong>, <strong>Debt</strong>, <strong>phone1</strong>, <strong>phone2</strong>, <strong>phone3</strong>.</p>
+<p class="mt-1 text-sm text-slate-600">Upload a CSV/XLSX file. The first row should be headers. Supported template columns: <strong>F name</strong>, <strong>M name</strong>, <strong>L name</strong>, <strong>Address</strong>, <strong>city</strong>, <strong>state</strong>, <strong>zip</strong>, <strong>ssn</strong>, <strong>Dob</strong>, <strong>Debt</strong>, <strong>Fees</strong>, <strong>phone1</strong>, <strong>phone2</strong>, <strong>phone3</strong>.</p>
 
 @if(session('import_errors'))
     <div class="mt-4 rounded-md bg-amber-50 p-4 text-sm text-amber-800 border border-amber-200">
@@ -37,7 +37,7 @@
 
 <div class="mt-8 rounded-xl bg-slate-50 p-4 text-sm text-slate-700 ring-1 ring-slate-200">
     <p class="font-medium">Example header row (CSV/XLSX):</p>
-    <code class="mt-1 block break-all">F name,M name,L name,Address,city,state,zip,ssn,Dob,Debt,phone1,phone2,phone3</code>
+    <code class="mt-1 block break-all">F name,M name,L name,Address,city,state,zip,ssn,Dob,Debt,Fees,phone1,phone2,phone3</code>
 </div>
 
 <div class="mt-8 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">

@@ -22,6 +22,7 @@ class LeadCard extends Model
         'apr',
         'charge_card',
         'comment',
+        'fees',
         'created_by',
         'updated_by',
     ];
@@ -33,6 +34,7 @@ class LeadCard extends Model
             'available_amount' => 'decimal:2',
             'apr' => 'decimal:2',
             'charge_card' => 'boolean',
+            'fees' => 'decimal:2',
         ];
     }
 

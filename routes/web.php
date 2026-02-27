@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CreditReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LeadController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\UserController;
@@ -20,6 +21,7 @@ Route::post('logout', [AuthController::class, 'logout'])->name('logout')->middle
 
 Route::middleware('auth')->group(function (): void {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('callbacks', [LeadController::class, 'callbacksIndex'])->name('callbacks.index');
 
     Route::middleware('admin')->group(function (): void {
         Route::get('reports/sales', [ReportController::class, 'sales'])->name('reports.sales');
@@ -48,9 +50,17 @@ Route::middleware('auth')->group(function (): void {
     });
 
     Route::post('leads/{lead}/notes', [LeadController::class, 'storeNote'])->name('leads.notes.store');
+    Route::get('leads/{lead}/related/create', [LeadController::class, 'createRelated'])->name('leads.related.create');
+    Route::post('leads/{lead}/related', [LeadController::class, 'storeRelated'])->name('leads.related.store');
     Route::post('leads/{lead}/credit-report/request', [CreditReportController::class, 'request'])->name('leads.credit-report.request');
     Route::post('leads/{lead}/credit-report/recheck', [CreditReportController::class, 'recheck'])->name('leads.credit-report.recheck');
     Route::get('credit-reports/{creditReport}/download', [CreditReportController::class, 'download'])->name('credit-reports.download');
+        Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::get('notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('notifications.unread-count');
+        Route::get('notifications/recent', [NotificationController::class, 'recent'])->name('notifications.recent');
+        Route::get('notifications/{crmNotification}/open', [NotificationController::class, 'open'])->name('notifications.open');
+        Route::post('notifications/{crmNotification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+        Route::post('notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::get('leads/{lead}/cards/create', [LeadController::class, 'createCard'])->name('leads.cards.create');
     Route::post('leads/{lead}/cards', [LeadController::class, 'storeCard'])->name('leads.cards.store');
     Route::get('leads/{lead}/cards/{card}/edit', [LeadController::class, 'editCard'])->name('leads.cards.edit');

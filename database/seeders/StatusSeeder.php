@@ -21,6 +21,7 @@ class StatusSeeder extends Seeder
             ['name' => 'Payoff', 'slug' => 'payoff'],
             ['name' => 'Maxout', 'slug' => 'maxout'],
             ['name' => 'Drop', 'slug' => 'drop'],
+            ['name' => 'Not Interested', 'slug' => 'not-interested'],
             ['name' => 'Submitted', 'slug' => 'submitted'],
         ];
 

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CrmNotification;
 use App\Models\CreditReport;
 use App\Models\Lead;
+use App\Models\User;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -16,6 +18,13 @@ class CreditReportController extends Controller
     public function index(Request $request): View
     {
         $this->abortUnlessAdmin();
+
+        CrmNotification::query()
+            ->where('target_user_id', auth()->id())
+            ->where('type', 'like', 'cr.%')
+            ->whereNull('read_at')
+            ->where('notify_at', '<=', now())
+            ->update(['read_at' => now()]);
 
         $status = (string) $request->query('status', 'pending');
         $allowed = [
@@ -57,13 +66,21 @@ class CreditReportController extends Controller
             return redirect()->route('leads.edit', $lead)->with('success', 'CR already available. Use Get Report.');
         }
 
-        CreditReport::create([
+        $creditReport = CreditReport::create([
             'lead_id' => $lead->id,
             'phone_number' => $lead->phones->first()?->phone,
             'status' => CreditReport::STATUS_PENDING,
             'requested_by' => auth()->id(),
             'requested_at' => now(),
         ]);
+
+        $this->notifyAdminsForCr(
+            type: 'cr.requested',
+            title: 'New CR request',
+            message: 'A credit report request was created for ' . $lead->fullName() . '.',
+            lead: $lead,
+            creditReport: $creditReport
+        );
 
         return redirect()->route('leads.edit', $lead)->with('success', 'CR request sent.');
     }
@@ -92,6 +109,14 @@ class CreditReportController extends Controller
             'requested_by' => auth()->id(),
             'requested_at' => now(),
         ]);
+
+        $this->notifyAdminsForCr(
+            type: 'cr.recheck',
+            title: 'CR re-check requested',
+            message: 'A CR re-check was requested for ' . $lead->fullName() . '.',
+            lead: $lead,
+            creditReport: $existing
+        );
 
         return redirect()->route('leads.edit', $lead)->with('success', 'CR re-check request sent.');
     }
@@ -199,5 +224,36 @@ class CreditReportController extends Controller
     {
         $hasPhone = (bool) $lead->phones->first()?->phone;
         return $hasPhone && $lead->first_name !== '' && $lead->last_name !== '' && (string) $lead->address !== '';
+    }
+
+    private function notifyAdminsForCr(string $type, string $title, string $message, Lead $lead, CreditReport $creditReport): void
+    {
+        $adminIds = User::query()
+            ->whereHas('roles', fn ($q) => $q->where('slug', 'admin'))
+            ->pluck('id');
+
+        $notifyAt = now();
+
+        foreach ($adminIds as $adminId) {
+            CrmNotification::query()->create([
+                'created_by' => auth()->id(),
+                'target_user_id' => (int) $adminId,
+                'type' => $type,
+                'entity_type' => 'credit_report',
+                'entity_id' => $creditReport->id,
+                'title' => $title,
+                'message' => $message,
+                'action_url' => route('leads.edit', $lead),
+                'notify_at' => $notifyAt,
+                'sent_at' => $notifyAt,
+                'status' => 'sent',
+                'priority' => 'normal',
+                'meta' => [
+                    'lead_id' => $lead->id,
+                    'credit_report_id' => $creditReport->id,
+                    'requested_by' => auth()->id(),
+                ],
+            ]);
+        }
     }
 }

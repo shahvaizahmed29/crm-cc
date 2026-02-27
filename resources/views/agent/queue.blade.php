@@ -69,6 +69,22 @@
                 <dt class="text-xs text-slate-500">Address</dt>
                 <dd class="text-sm text-slate-900">{{ $candidateLead->address ?: '—' }}</dd>
             </div>
+            <div>
+                <dt class="text-xs text-slate-500">Phone</dt>
+                <dd class="mt-0.5">
+                    <span class="inline-flex items-center rounded-md bg-emerald-100 px-2.5 py-1 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-200">
+                        {{ $candidateLead->phones->first()?->phone ?? '—' }}
+                    </span>
+                </dd>
+            </div>
+            <div>
+                <dt class="text-xs text-slate-500">Alt Phone</dt>
+                <dd class="mt-0.5">
+                    <span class="inline-flex items-center rounded-md bg-sky-100 px-2.5 py-1 text-sm font-semibold text-sky-800 ring-1 ring-sky-200">
+                        {{ $candidateLead->phones->skip(1)->first()?->phone ?? '—' }}
+                    </span>
+                </dd>
+            </div>
         </dl>
 
         <div class="mt-5 flex gap-2">

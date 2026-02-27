@@ -72,6 +72,16 @@ class User extends Authenticatable
         return $this->hasMany(CreditReport::class, 'processed_by');
     }
 
+    public function createdNotifications(): HasMany
+    {
+        return $this->hasMany(CrmNotification::class, 'created_by');
+    }
+
+    public function targetNotifications(): HasMany
+    {
+        return $this->hasMany(CrmNotification::class, 'target_user_id');
+    }
+
     public function hasRole(string $slug): bool
     {
         return $this->roles()->where('slug', $slug)->exists();

@@ -7,6 +7,11 @@
     <x-slot:actions>
         @if(auth()->user()->isAdmin())
             <a href="{{ route('leads.download.txt', $lead) }}" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500">Download TXT</a>
+            <form action="{{ route('leads.destroy', $lead) }}" method="POST" onsubmit="return confirm('Soft delete this lead?');">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-500">Delete</button>
+            </form>
         @endif
         <a href="{{ route('leads.edit', $lead) }}" class="rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-500">Edit</a>
         <a href="{{ route('leads.index') }}" class="rounded-md bg-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300">Back to list</a>
@@ -32,6 +37,10 @@
             <div>
                 <dt class="text-xs text-slate-500">Approx debt</dt>
                 <dd class="mt-0.5 text-sm text-slate-900">{{ $lead->approx_debt ? '$' . number_format($lead->approx_debt, 2) : '—' }}</dd>
+            </div>
+            <div>
+                <dt class="text-xs text-slate-500">Fees</dt>
+                <dd class="mt-0.5 text-sm text-slate-900">{{ $lead->fees ? '$' . number_format($lead->fees, 2) : '—' }}</dd>
             </div>
             <div>
                 <dt class="text-xs text-slate-500">DNC</dt>
@@ -109,6 +118,41 @@
                 <ul class="mt-2 space-y-1">
                     @foreach($lead->emails as $email)
                         <li class="text-sm text-slate-900">{{ $email->email }}</li>
+                    @endforeach
+                </ul>
+            @endif
+        </div>
+
+        <div class="rounded-lg bg-white p-6 shadow ring-1 ring-slate-200">
+            <h2 class="text-sm font-medium text-slate-500">Callbacks <span class="font-semibold text-slate-700">({{ $callbackNotifications->count() }})</span></h2>
+            <p class="mt-1 text-xs text-slate-500">All callback reminders created for this lead.</p>
+            @if($callbackNotifications->isEmpty())
+                <p class="mt-3 text-sm text-slate-500">No callbacks yet.</p>
+            @else
+                <ul class="mt-3 space-y-3 divide-y divide-slate-100">
+                    @foreach($callbackNotifications as $notif)
+                        <li class="pt-3 first:pt-0">
+                            <div class="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                    <p class="text-sm font-medium text-slate-900">{{ $notif->title }}</p>
+                                    @if($notif->message)
+                                        <p class="mt-0.5 text-xs text-slate-600">{{ $notif->message }}</p>
+                                    @endif
+                                    <p class="mt-1 text-xs text-slate-500">
+                                        Notify at: {{ $notif->notify_at?->format('M j, Y g:i A') }}
+                                        @if($notif->createdBy)
+                                            · Created by {{ $notif->createdBy->displayName() }}
+                                        @endif
+                                        @if($notif->read_at)
+                                            · Read
+                                        @endif
+                                    </p>
+                                </div>
+                                @if($notif->action_url)
+                                    <a href="{{ route('notifications.open', $notif) }}" class="shrink-0 rounded-md bg-sky-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-sky-500">Open</a>
+                                @endif
+                            </div>
+                        </li>
                     @endforeach
                 </ul>
             @endif

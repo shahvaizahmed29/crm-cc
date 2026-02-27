@@ -5,6 +5,7 @@
     'selected' => null,
     'required' => false,
     'placeholder' => null,
+    'changeHandler' => null,
 ])
 
 @php
@@ -13,6 +14,7 @@
 @endphp
 
 <select name="{{ $name }}" id="{{ $id }}" {{ $required ? 'required' : '' }}
+    @if($changeHandler) x-on:change="{{ $changeHandler }}" @endif
     {{ $attributes->merge(['class' => 'mt-0.5 block w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm shadow-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500']) }}>
     @if($placeholder)
         <option value="">{{ $placeholder }}</option>

@@ -44,6 +44,9 @@
     <x-form-field label="APR %" for="apr">
         <x-input id="apr" name="apr" type="number" :value="old('apr')" step="0.01" min="0" />
     </x-form-field>
+    <x-form-field label="Fees $" for="fees">
+        <x-input id="fees" name="fees" type="number" :value="old('fees')" step="0.01" min="0" />
+    </x-form-field>
     <div class="flex items-center gap-2">
         <input
             type="checkbox"

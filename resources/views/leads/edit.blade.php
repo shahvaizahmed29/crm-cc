@@ -6,10 +6,18 @@
 <x-page-header title="Edit Lead — {{ $lead->fullName() }}">
     <x-slot:actions>
         <a href="{{ route('leads.show', $lead) }}" class="rounded-md bg-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300">View</a>
+        <a href="{{ route('leads.related.create', $lead) }}" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500">Add Related Lead</a>
+        @if(auth()->user()->isAdmin())
+            <form action="{{ route('leads.destroy', $lead) }}" method="POST" onsubmit="return confirm('Soft delete this lead?');">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-500">Delete</button>
+            </form>
+        @endif
     </x-slot:actions>
 </x-page-header>
 
-<form action="{{ route('leads.update', $lead) }}" method="POST" class="mt-4">
+<form id="lead-edit-form" action="{{ route('leads.update', $lead) }}" method="POST" class="mt-4" @if(isset($callbackStatusId) && $callbackStatusId !== null) data-callback-status-id="{{ $callbackStatusId }}" data-callback-at-utc="{{ $callbackAtUtc ?? '' }}" @endif>
     @csrf
     @method('PUT')
 
@@ -48,6 +56,10 @@
                             <x-form-field label="Approx Debt" for="approx_debt">
                                 <x-input name="approx_debt" id="approx_debt" type="number" :value="old('approx_debt', $lead->approx_debt)" />
                             </x-form-field>
+
+                            <x-form-field label="Fees (from cards)" for="fees">
+                                <x-input name="fees" id="fees" type="text" :value="number_format((float) $lead->cards->sum('fees'), 2)" readonly disabled class="bg-slate-100 cursor-not-allowed" />
+                            </x-form-field>
         
                             <x-form-field label="Details" for="details">
                                 <x-input name="details" id="details" type="textarea" :value="old('details', $lead->details)" :rows="3" />
@@ -58,9 +70,29 @@
                                 <label for="is_dnc" class="text-sm font-medium text-slate-700">Mark as DNC (Do Not Call)</label>
                             </div>
         
+                            @if(isset($callbackStatusId) && $callbackStatusId !== null)
+                            <div x-data="{ selectedStatusId: '{{ old('status_id', $lead->status_id) }}', callbackStatusId: '{{ $callbackStatusId }}' }">
+                            @endif
                             <x-form-field label="Status" for="status_id" :required="true">
-                                <x-select name="status_id" id="status_id" :options="$statuses->pluck('name', 'id')" :selected="old('status_id', $lead->status_id)" required />
+                                <x-select name="status_id" id="status_id" :options="$statuses->pluck('name', 'id')" :selected="old('status_id', $lead->status_id)" required :change-handler="isset($callbackStatusId) ? 'selectedStatusId = $event.target.value' : null" />
                             </x-form-field>
+
+                            @if(isset($callbackStatusId) && $callbackStatusId !== null)
+                            <div x-show="selectedStatusId === callbackStatusId" x-cloak class="mt-3 space-y-3 rounded-lg border border-sky-200 bg-sky-50/50 p-3">
+                                <p class="text-sm font-medium text-slate-700">Callback date & time</p>
+                                <p class="text-xs text-slate-500">Set when you want to be reminded to call back. You’ll get a notification before this time. Date and time are in your local timezone.</p>
+                                <input type="hidden" name="callback_at_utc" id="callback_at_utc" value="">
+                                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <x-form-field label="Callback date" for="callback_date">
+                                        <x-input name="callback_date" id="callback_date" type="date" :value="old('callback_date', $callbackDate ?? null)" :min="now()->format('Y-m-d')" />
+                                    </x-form-field>
+                                    <x-form-field label="Callback time" for="callback_time">
+                                        <x-input name="callback_time" id="callback_time" type="time" :value="old('callback_time', $callbackTime ?? null)" />
+                                    </x-form-field>
+                                </div>
+                            </div>
+                            </div>
+                            @endif
         
                             @if(auth()->user()->isAdmin())
                             <x-form-field label="Assigned To" for="assigned_to">
@@ -211,6 +243,7 @@
                                  <p><span class="font-medium">Due Payment:</span> {{ $card->due_payment ?: '—' }}</p>
                                  <p><span class="font-medium">APR:</span> {{ $card->apr !== null ? number_format($card->apr, 2) . '%' : '—' }}</p>
                                  <p><span class="font-medium">Charge Card:</span> {{ $card->charge_card ? 'Yes' : 'No' }}</p>
+                                 <p><span class="font-medium">Fees:</span> {{ $card->fees !== null ? '$' . number_format($card->fees, 2) : '—' }}</p>
                              </div>
                              @if($card->comment)
                              <p class="mt-2 whitespace-pre-wrap text-xs text-slate-700"><span class="font-medium">Comment:</span> {{ $card->comment }}</p>
@@ -266,6 +299,9 @@
                                  </x-form-field>
                                  <x-form-field label="APR %" for="modal_apr">
                                      <x-input id="modal_apr" name="apr" type="number" :value="old('apr')" step="0.01" min="0" />
+                                 </x-form-field>
+                                 <x-form-field label="Fees $" for="modal_fees">
+                                     <x-input id="modal_fees" name="fees" type="number" :value="old('fees')" step="0.01" min="0" />
                                  </x-form-field>
                                  <div class="flex items-center gap-2">
                                      <input type="checkbox" name="charge_card" id="modal_charge_card" value="1" {{ old('charge_card') ? 'checked' : '' }} class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
@@ -416,6 +452,37 @@ document.addEventListener('DOMContentLoaded', function () {
         $expiry.on('input blur', function () { updateState($number.validateCreditCard()); });
         $cvc.on('input blur', function () { updateState($number.validateCreditCard()); });
         updateState($number.validateCreditCard());
+    });
+});
+
+document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('lead-edit-form');
+    if (!form) return;
+    var callbackAtUtc = form.getAttribute('data-callback-at-utc');
+    var callbackDateEl = document.getElementById('callback_date');
+    var callbackTimeEl = document.getElementById('callback_time');
+    if (callbackAtUtc && callbackAtUtc.trim() !== '' && callbackDateEl && callbackTimeEl) {
+        var d = new Date(callbackAtUtc.trim());
+        if (!isNaN(d.getTime())) {
+            var y = d.getFullYear();
+            var m = String(d.getMonth() + 1).padStart(2, '0');
+            var day = String(d.getDate()).padStart(2, '0');
+            var h = String(d.getHours()).padStart(2, '0');
+            var min = String(d.getMinutes()).padStart(2, '0');
+            callbackDateEl.value = y + '-' + m + '-' + day;
+            callbackTimeEl.value = h + ':' + min;
+        }
+    }
+    form.addEventListener('submit', function () {
+        var callbackStatusId = form.getAttribute('data-callback-status-id');
+        var statusIdEl = document.getElementById('status_id');
+        if (!callbackStatusId || !statusIdEl || statusIdEl.value !== callbackStatusId) return;
+        if (!callbackDateEl || !callbackTimeEl || !callbackDateEl.value || !callbackTimeEl.value) return;
+        var parts = callbackDateEl.value.split('-').map(Number);
+        var timeParts = callbackTimeEl.value.split(':').map(Number);
+        var localDate = new Date(parts[0], parts[1] - 1, parts[2], timeParts[0], timeParts[1] || 0, 0, 0);
+        var utcInput = document.getElementById('callback_at_utc');
+        if (utcInput) utcInput.value = localDate.toISOString();
     });
 });
 </script>

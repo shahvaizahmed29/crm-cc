@@ -51,6 +51,7 @@
                     <a href="{{ route('leads.new.index') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('leads.new.index') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">New Leads</a>
                     @endif
                     <a href="{{ route('leads.index') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('leads.*') && !request()->routeIs('leads.new.index') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Leads</a>
+                    <a href="{{ route('callbacks.index') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('callbacks.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Callbacks</a>
                     @if(auth()->user()->isAdmin())
                     <a href="{{ route('reports.sales') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('reports.sales') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Sales</a>
                     <a href="{{ route('users.index') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('users.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Users</a>
@@ -64,7 +65,36 @@
                     @endif
                 </nav>
 
-                <div class="flex shrink-0 items-center gap-3">
+                <div class="flex shrink-0 items-center gap-2">
+                    <div class="relative" x-data="notificationDropdown()" data-recent-url="{{ route('notifications.recent') }}" @notifications-updated.window="onUpdate($event.detail)" x-init="fetchRecent()">
+                        <button type="button" @click="open = !open" :aria-expanded="open" aria-haspopup="true" aria-label="Toggle notifications" class="inline-flex items-center rounded-xl px-3 py-2 text-[13px] font-semibold {{ request()->routeIs('notifications.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
+                            <span class="sr-only md:not-sr-only md:inline">Notifications</span>
+                            <span class="js-notification-badge ml-1 items-center rounded-full bg-sky-500 px-1.5 py-0.5 text-[10px] font-semibold text-white" :class="count > 0 ? 'inline-flex' : 'hidden'">
+                                <span class="mr-0.5">🔔</span><span class="js-notification-count" x-text="count"></span>
+                            </span>
+                            <svg class="ml-1 h-4 w-4 shrink-0 transition-transform" :class="open && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                        </button>
+                        <div x-show="open" x-cloak x-transition:enter="transition ease-out duration-100" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" @click.outside="open = false"
+                             class="absolute right-0 top-full z-[100] mt-2 w-[28rem] max-w-[calc(100vw-2rem)] max-h-[min(28rem,70vh)] overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-xl ring-1 ring-black/5">
+                            <div class="border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">Notifications</div>
+                            <div class="max-h-80 overflow-y-auto">
+                                <template x-if="items.length === 0">
+                                    <p class="px-3 py-4 text-center text-sm text-slate-500">No notifications yet</p>
+                                </template>
+                                <template x-for="n in items" :key="n.id">
+                                    <a :href="n.open_url" class="block border-b border-slate-100 px-3 py-2.5 text-left last:border-b-0 transition-colors"
+                                       :class="n.read_at ? 'bg-white hover:bg-slate-50' : 'border-l-4 border-l-sky-500 bg-sky-50/70 hover:bg-sky-100/80'">
+                                        <p class="text-sm font-medium" :class="n.read_at ? 'text-slate-600' : 'text-slate-900'" x-text="n.title"></p>
+                                        <p class="mt-0.5 text-xs line-clamp-2" :class="n.read_at ? 'text-slate-500' : 'text-slate-600'" x-text="n.message || ''"></p>
+                                        <p class="mt-1 text-xs text-slate-400" x-text="n.notify_at_human"></p>
+                                    </a>
+                                </template>
+                            </div>
+                            <div class="border-t border-slate-200 bg-slate-50 px-3 py-2">
+                                <a href="{{ route('notifications.index') }}" class="block text-center text-sm font-medium text-sky-600 hover:text-sky-500">View all</a>
+                            </div>
+                        </div>
+                    </div>
                     <span class="hidden rounded-md bg-slate-800 px-2.5 py-1 text-xs text-slate-300 xl:inline">{{ auth()->user()->displayName() }}</span>
                     <div class="relative" x-data="{ open: false }">
                         <button type="button" @click="open = !open" class="flex items-center gap-1 rounded-xl border border-slate-700 px-3 py-2 text-[13px] font-semibold text-white hover:bg-slate-800">
@@ -92,6 +122,7 @@
                     <a href="{{ route('leads.new.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('leads.new.index') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">New Leads</a>
                     @endif
                     <a href="{{ route('leads.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('leads.*') && !request()->routeIs('leads.new.index') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Leads</a>
+                    <a href="{{ route('callbacks.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('callbacks.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Callbacks</a>
                     @if(auth()->user()->isAdmin())
                     <a href="{{ route('reports.sales') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('reports.sales') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Sales</a>
                     <a href="{{ route('users.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('users.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Users</a>
@@ -103,6 +134,7 @@
                         </span>
                     </a>
                     @endif
+                    <a href="{{ route('notifications.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('notifications.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Notifications</a>
                 </nav>
             </div>
         </div>
@@ -134,14 +166,37 @@
     </footer>
     <script defer src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script defer src="{{ asset('js/jquery.creditCardValidator.js') }}"></script>
-    @if(auth()->user()->isAdmin())
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('notificationDropdown', () => ({
+                open: false,
+                count: 0,
+                items: [],
+                onUpdate(payload) {
+                    this.count = payload.count ?? 0;
+                    this.items = payload.items ?? [];
+                },
+                fetchRecent() {
+                    const url = this.$el.dataset.recentUrl;
+                    if (!url) return;
+                    fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+                        .then(r => r.ok ? r.json() : { count: 0, items: [] })
+                        .then(d => { this.count = d.count ?? 0; this.items = d.items ?? []; })
+                        .catch(() => {});
+                }
+            }));
+        });
+    </script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const pollIntervalMs = 3000;
-            const endpoint = '{{ route('credit-reports.pending-count') }}';
+            const pollIntervalSeconds = Math.max(1, Math.min(300, {{ (int) config('app.notification_poll_seconds', 3) }}));
+            const pollIntervalMs = pollIntervalSeconds * 1000;
+            const recentEndpoint = '{{ route('notifications.recent') }}';
+            const crNotificationsEndpoint = '{{ route('notifications.unread-count', ['type_prefix' => 'cr']) }}';
             const alertSoundUrl = '{{ asset('sounds/notification.wav') }}';
             const crSoundEnabled = {{ \App\Models\Setting::get('cr_sound_notifications_enabled', '1') === '1' ? 'true' : 'false' }};
             const isCrReportsPage = {{ request()->routeIs('credit-reports.*') ? 'true' : 'false' }};
+            const isAdmin = {{ auth()->user()->isAdmin() ? 'true' : 'false' }};
             const soundCooldownMs = 9000;
             // Testing toggle: set true to force beep every poll cycle.
             const forceCrSoundTest = false;
@@ -150,9 +205,9 @@
             let alertAudio = null;
             let lastSoundPlayedAt = 0;
 
-            const updateBadges = (count) => {
-                const badges = document.querySelectorAll('.js-cr-pending-badge');
-                const counts = document.querySelectorAll('.js-cr-pending-count');
+            const updateBadge = (badgeSelector, countSelector, count) => {
+                const badges = document.querySelectorAll(badgeSelector);
+                const counts = document.querySelectorAll(countSelector);
                 counts.forEach((el) => {
                     el.textContent = String(count);
                 });
@@ -276,7 +331,7 @@
 
             const poll = async () => {
                 try {
-                    const response = await fetch(endpoint, {
+                    const response = await fetch(recentEndpoint, {
                         method: 'GET',
                         headers: { 'Accept': 'application/json' },
                         credentials: 'same-origin',
@@ -286,17 +341,32 @@
                     }
 
                     const data = await response.json();
-                    const count = Number(data?.count ?? 0) || 0;
-                    const shouldBugByPending = count > 0 && !isCrReportsPage;
+                    const totalCount = Number(data?.count ?? 0) || 0;
+                    updateBadge('.js-notification-badge', '.js-notification-count', totalCount);
+                    window.dispatchEvent(new CustomEvent('notifications-updated', { detail: { count: totalCount, items: data?.items ?? [] } }));
 
-                    const shouldPlaySound = forceCrSoundTest || (crSoundEnabled && shouldBugByPending);
+                    let crCount = 0;
+                    if (isAdmin) {
+                        const crResponse = await fetch(crNotificationsEndpoint, {
+                            method: 'GET',
+                            headers: { 'Accept': 'application/json' },
+                            credentials: 'same-origin',
+                        });
+                        if (crResponse.ok) {
+                            const crData = await crResponse.json();
+                            crCount = Number(crData?.count ?? 0) || 0;
+                        }
+                    }
+
+                    updateBadge('.js-cr-pending-badge', '.js-cr-pending-count', crCount);
+
+                    const shouldBugByPending = crCount > 0 && !isCrReportsPage;
+                    const shouldPlaySound = forceCrSoundTest || (isAdmin && crSoundEnabled && shouldBugByPending);
                     const nowMs = Date.now();
                     if (shouldPlaySound && audioUnlocked && (nowMs - lastSoundPlayedAt >= soundCooldownMs)) {
                         lastSoundPlayedAt = nowMs;
                         void playAlertSound();
                     }
-
-                    updateBadges(count);
                 } catch (e) {
                     // Silent fail; next poll will retry.
                 }
@@ -309,7 +379,6 @@
             setInterval(poll, pollIntervalMs);
         });
     </script>
-    @endif
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     @stack('scripts')
 </body>

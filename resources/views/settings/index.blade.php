@@ -118,6 +118,27 @@
         @enderror
     </div>
 
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Callback reminder window</h2>
+        <p class="mt-1 text-sm text-slate-500">How many minutes before callback time the reminder should notify the creator.</p>
+        <div class="mt-3">
+            <label for="callback_reminder_minutes" class="sr-only">Callback reminder minutes</label>
+            <input
+                type="number"
+                name="callback_reminder_minutes"
+                id="callback_reminder_minutes"
+                min="1"
+                max="1440"
+                value="{{ old('callback_reminder_minutes', $callbackReminderMinutes ?? 15) }}"
+                class="rounded-md border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500"
+                required
+            >
+        </div>
+        @error('callback_reminder_minutes')
+            <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
+        @enderror
+    </div>
+
     <div>
         <button type="submit" class="inline-flex justify-center rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-500">Save settings</button>
     </div>

@@ -30,6 +30,9 @@
         <x-form-field label="Approx Debt" for="approx_debt">
             <x-input name="approx_debt" id="approx_debt" type="number" :value="old('approx_debt')" />
         </x-form-field>
+        <x-form-field label="Fees" for="fees">
+            <x-input name="fees" id="fees" type="number" :value="old('fees')" />
+        </x-form-field>
         <x-form-field label="Details" for="details">
             <x-input name="details" id="details" type="textarea" :value="old('details')" :rows="3" />
         </x-form-field>

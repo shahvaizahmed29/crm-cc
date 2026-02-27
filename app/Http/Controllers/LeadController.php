@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CrmNotification;
 use App\Models\Lead;
 use App\Models\LeadCard;
 use App\Models\LeadEmail;
@@ -124,7 +125,24 @@ class LeadController extends Controller
             ? Status::whereIn('slug', $this->holdingStatusSlugs())->orderBy('name')->get()
             : $statusesQuery->get();
 
-        return view('leads.index', compact('leads', 'statuses', 'holdingCount', 'historyLimit'));
+        $availableColumns = [
+            ['id' => 'name', 'label' => 'Name'],
+            ['id' => 'status', 'label' => 'Status'],
+            ['id' => 'total_debt', 'label' => 'Total Debt'],
+            ['id' => 'fees', 'label' => 'Fees'],
+            ['id' => 'last_update', 'label' => 'Last Update'],
+            ['id' => 'dnc', 'label' => 'DNC'],
+            ['id' => 'contacts', 'label' => 'Contacts'],
+        ];
+        if ($isAdmin) {
+            $availableColumns[] = ['id' => 'assigned_to', 'label' => 'Assigned To'];
+        }
+        $defaultColumns = ['name', 'status', 'total_debt', 'last_update', 'dnc', 'contacts'];
+        if ($isAdmin) {
+            $defaultColumns[] = 'assigned_to';
+        }
+
+        return view('leads.index', compact('leads', 'statuses', 'holdingCount', 'historyLimit', 'availableColumns', 'defaultColumns'));
     }
 
     public function adminNewLeads(Request $request): View
@@ -174,11 +192,11 @@ class LeadController extends Controller
             return redirect()->route('agent.queue')->with('error', 'You reached the history limit. Update a history lead to a final status first.');
         }
 
-        $newStatusId = $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG);
+        $queueStatusIds = $this->queueAssignableStatusIds();
         $isStillAvailable = Lead::query()
             ->whereKey($request->integer('lead_id'))
             ->whereNull('assigned_to')
-            ->where('status_id', $newStatusId)
+            ->whereIn('status_id', $queueStatusIds)
             ->where('is_dnc', false)
             ->exists();
 
@@ -205,6 +223,7 @@ class LeadController extends Controller
 
         $leadId = $request->integer('lead_id');
         $newStatusId = $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG);
+        $queueStatusIds = $this->queueAssignableStatusIds();
         $agentId = auth()->id();
 
         if ($this->agentHoldingCount() >= $this->agentHistoryLimit()) {
@@ -212,7 +231,7 @@ class LeadController extends Controller
         }
 
         try {
-            $assignedLead = DB::transaction(function () use ($agentId, $leadId, $newStatusId) {
+            $assignedLead = DB::transaction(function () use ($agentId, $leadId, $newStatusId, $queueStatusIds) {
                 $hasActiveLead = Lead::query()
                     ->where('assigned_to', $agentId)
                     ->where('status_id', $newStatusId)
@@ -226,7 +245,7 @@ class LeadController extends Controller
                 $lead = Lead::query()
                     ->whereKey($leadId)
                     ->whereNull('assigned_to')
-                    ->where('status_id', $newStatusId)
+                    ->whereIn('status_id', $queueStatusIds)
                     ->where('is_dnc', false)
                     ->lockForUpdate()
                     ->first();
@@ -289,6 +308,7 @@ class LeadController extends Controller
                 'ssn',
                 'Dob',
                 'Debt',
+                'Fees',
                 'phone1',
                 'phone2',
                 'phone3',
@@ -304,6 +324,7 @@ class LeadController extends Controller
                 '111-22-3333',
                 '1988-04-12',
                 '12000.50',
+                '450.00',
                 '5551234567',
                 '5551234568',
                 '',
@@ -379,9 +400,9 @@ class LeadController extends Controller
             }
             $totalRows++;
 
-            $firstName = $this->getCsvColumn($data, ['first_name', 'firstname', 'f name', 'f_name', 'fname']);
-            $middleName = $this->getCsvColumn($data, ['middle_name', 'middlename', 'm name', 'm_name', 'mname']);
-            $lastName = $this->getCsvColumn($data, ['last_name', 'lastname', 'l name', 'l_name', 'lname']);
+            $firstName = $this->getCsvColumn($data, ['F name', 'first_name', 'firstname', 'f name', 'f_name', 'fname']);
+            $middleName = $this->getCsvColumn($data, ['M name', 'middle_name', 'middlename', 'm name', 'm_name', 'mname']);
+            $lastName = $this->getCsvColumn($data, ['L name', 'last_name', 'lastname', 'l name', 'l_name', 'lname']);
 
             $firstName = trim($firstName . ($middleName !== '' ? ' ' . $middleName : ''));
             if ($firstName === '' || $lastName === '') {
@@ -410,10 +431,11 @@ class LeadController extends Controller
                         'first_name' => $firstName,
                         'last_name' => $lastName,
                         'address' => $this->buildAddressFromCsv($data),
-                        'date_of_birth' => $this->parseDate($this->getCsvColumn($data, ['date_of_birth', 'dob', 'date of birth'])),
+                        'date_of_birth' => $this->parseDate($this->getCsvColumn($data, ['Dob', 'date_of_birth', 'dob', 'date of birth'])),
                         'mothers_maiden_name' => $this->getCsvColumn($data, ['mothers_maiden_name', 'mmn']),
                         'ssn' => $this->getCsvColumn($data, ['ssn']),
-                        'approx_debt' => $this->parseDecimal($this->getCsvColumn($data, ['approx_debt', 'debt'])),
+                        'approx_debt' => $this->parseDecimal($this->getCsvColumn($data, ['Debt', 'approx_debt', 'debt'])),
+                        'fees' => $this->parseDecimal($this->getCsvColumn($data, ['Fees', 'fees', 'fee'])),
                         'details' => $details !== '' ? $details : null,
                         'is_dnc' => $this->parseBoolean($this->getCsvColumn($data, ['is_dnc', 'dnc'])),
                         'status_id' => $statusId,
@@ -493,7 +515,7 @@ class LeadController extends Controller
             $out = fopen('php://output', 'w');
             fputcsv($out, [
                 'first_name', 'last_name', 'status', 'address', 'date_of_birth', 'mothers_maiden_name',
-                'ssn', 'approx_debt', 'details', 'is_dnc', 'phone', 'email', 'assigned_to',
+                'ssn', 'approx_debt', 'fees', 'details', 'is_dnc', 'phone', 'email', 'assigned_to',
             ]);
             foreach ($leads as $lead) {
                 fputcsv($out, [
@@ -505,6 +527,7 @@ class LeadController extends Controller
                     $lead->mothers_maiden_name ?? '',
                     $lead->ssn ?? '',
                     $lead->approx_debt ?? '',
+                    $lead->fees ?? '',
                     $lead->details ?? '',
                     $lead->is_dnc ? '1' : '0',
                     $lead->phones->first()?->phone ?? '',
@@ -582,22 +605,7 @@ class LeadController extends Controller
             abort(403, 'Only admin can create leads manually.');
         }
 
-        $validated = $request->validate([
-            'first_name' => ['required', 'string', 'max:255'],
-            'last_name' => ['required', 'string', 'max:255'],
-            'address' => ['nullable', 'string'],
-            'date_of_birth' => ['nullable', 'date'],
-            'mothers_maiden_name' => ['nullable', 'string', 'max:255'],
-            'ssn' => ['nullable', 'string', 'max:255'],
-            'approx_debt' => ['nullable', 'numeric', 'min:0'],
-            'details' => ['nullable', 'string'],
-            'is_dnc' => ['nullable', 'boolean'],
-            'status_id' => ['required', 'exists:statuses,id'],
-            'phones' => ['nullable', 'array'],
-            'phones.*' => ['nullable', 'string', 'max:50'],
-            'emails' => ['nullable', 'array'],
-            'emails.*' => ['nullable', 'string', 'max:255'],
-        ]);
+        $validated = $this->validateLeadPayload($request);
 
         $lead = Lead::create([
             'first_name' => $validated['first_name'],
@@ -607,6 +615,7 @@ class LeadController extends Controller
             'mothers_maiden_name' => $validated['mothers_maiden_name'],
             'ssn' => $validated['ssn'],
             'approx_debt' => $validated['approx_debt'] ?? null,
+            'fees' => $validated['fees'] ?? null,
             'details' => $validated['details'],
             'is_dnc' => $request->boolean('is_dnc'),
             'status_id' => $validated['status_id'],
@@ -623,11 +632,86 @@ class LeadController extends Controller
         return redirect()->route('leads.index')->with('success', 'Lead created successfully.');
     }
 
+    public function createRelated(Lead $lead): View
+    {
+        $this->authorizeView($lead);
+
+        $statuses = auth()->user()->isAgent()
+            ? Status::where('slug', '!=', self::ACTIVE_STATUS_SLUG)->orderBy('name')->get()
+            : Status::orderBy('name')->get();
+
+        return view('leads.related-create', [
+            'lead' => $lead,
+            'statuses' => $statuses,
+        ]);
+    }
+
+    public function storeRelated(Request $request, Lead $lead): RedirectResponse
+    {
+        $this->authorizeView($lead);
+        $validated = $this->validateLeadPayload($request);
+
+        if (auth()->user()->isAgent() && (int) $validated['status_id'] === $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG)) {
+            return back()->with('error', 'Agent cannot create related lead with New status.')->withInput();
+        }
+
+        $assignedTo = auth()->user()->isAgent()
+            ? auth()->id()
+            : ($lead->assigned_to ?: null);
+
+        $relatedLead = Lead::create([
+            'parent_lead_id' => $lead->id,
+            'first_name' => $validated['first_name'],
+            'last_name' => $validated['last_name'],
+            'address' => $validated['address'],
+            'date_of_birth' => $validated['date_of_birth'] ?? null,
+            'mothers_maiden_name' => $validated['mothers_maiden_name'],
+            'ssn' => $validated['ssn'],
+            'approx_debt' => $validated['approx_debt'] ?? null,
+            'fees' => $validated['fees'] ?? null,
+            'details' => $validated['details'],
+            'is_dnc' => $request->boolean('is_dnc'),
+            'status_id' => $validated['status_id'],
+            'assigned_to' => $assignedTo,
+        ]);
+
+        foreach ($this->normalizeLines($validated['phones'] ?? []) as $phone) {
+            $relatedLead->phones()->create(['phone' => $phone]);
+        }
+        foreach ($this->normalizeLines($validated['emails'] ?? []) as $email) {
+            $relatedLead->emails()->create(['email' => $email]);
+        }
+
+        return redirect()->route('leads.edit', $relatedLead)->with('success', 'Related lead added successfully.');
+    }
+
+    public function callbacksIndex(): View
+    {
+        $callbacks = CrmNotification::query()
+            ->where('target_user_id', auth()->id())
+            ->where('type', 'like', 'callback.%')
+            ->where('entity_type', 'lead')
+            ->orderByDesc('notify_at')
+            ->paginate(20);
+
+        $leadIds = $callbacks->getCollection()->pluck('entity_id')->unique()->filter()->values()->all();
+        $leads = $leadIds !== [] ? Lead::whereIn('id', $leadIds)->get()->keyBy('id') : collect();
+
+        return view('callbacks.index', compact('callbacks', 'leads'));
+    }
+
     public function show(Lead $lead): View
     {
         $this->authorizeView($lead);
         $lead->load(['status', 'assignedTo', 'phones', 'emails', 'notes.createdBy', 'cards.createdBy', 'cards.updatedBy', 'creditReports.requestedBy', 'creditReports.processedBy']);
-        return view('leads.show', compact('lead'));
+        $callbackNotifications = CrmNotification::query()
+            ->where('entity_type', 'lead')
+            ->where('entity_id', $lead->id)
+            ->where('type', 'like', 'callback.%')
+            ->with('createdBy')
+            ->orderByDesc('notify_at')
+            ->get();
+        return view('leads.show', compact('lead', 'callbackNotifications'));
     }
 
     public function storeNote(Request $request, Lead $lead): RedirectResponse
@@ -666,6 +750,8 @@ class LeadController extends Controller
             'updated_by' => auth()->id(),
         ]);
 
+        $this->syncLeadFeesFromCards($lead);
+
         return redirect()->route('leads.edit', $lead)->with('success', 'Card added successfully.');
     }
 
@@ -689,6 +775,8 @@ class LeadController extends Controller
             'updated_by' => auth()->id(),
         ]);
 
+        $this->syncLeadFeesFromCards($lead);
+
         return redirect()->route('leads.edit', $lead)->with('success', 'Card updated successfully.');
     }
 
@@ -698,7 +786,15 @@ class LeadController extends Controller
         $this->assertCardBelongsToLead($lead, $card);
         $card->delete();
 
+        $this->syncLeadFeesFromCards($lead);
+
         return redirect()->route('leads.edit', $lead)->with('success', 'Card deleted successfully.');
+    }
+
+    private function syncLeadFeesFromCards(Lead $lead): void
+    {
+        $total = $lead->cards()->sum('fees');
+        $lead->update(['fees' => $total]);
     }
 
     public function edit(Lead $lead): View
@@ -711,33 +807,67 @@ class LeadController extends Controller
         $agents = auth()->user()->isAdmin()
             ? \App\Models\User::whereHas('roles', fn ($q) => $q->where('slug', 'agent'))->orderBy('name')->get()->mapWithKeys(fn ($u) => [$u->id => $u->displayName()])
             : collect();
-        return view('leads.edit', compact('lead', 'statuses', 'agents'));
+        $callbackStatusId = $this->statusIdsBySlug()['callback'] ?? null;
+        $callbackDate = null;
+        $callbackTime = null;
+        $callbackAtUtc = null;
+        if ($callbackStatusId !== null && (int) $lead->status_id === (int) $callbackStatusId) {
+            $latest = CrmNotification::query()
+                ->where('entity_type', 'lead')
+                ->where('entity_id', $lead->id)
+                ->where('type', 'callback.reminder')
+                ->orderByDesc('notify_at')
+                ->first();
+            if ($latest && ! empty($latest->meta['callback_at'])) {
+                $callbackAtUtc = $latest->meta['callback_at'];
+                try {
+                    $at = \Carbon\Carbon::parse($callbackAtUtc);
+                    $callbackDate = $at->format('Y-m-d');
+                    $callbackTime = $at->format('H:i');
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+            }
+        }
+        return view('leads.edit', compact('lead', 'statuses', 'agents', 'callbackStatusId', 'callbackDate', 'callbackTime', 'callbackAtUtc'));
     }
 
     public function update(Request $request, Lead $lead): RedirectResponse
     {
         $this->authorizeView($lead);
 
-        $validated = $request->validate([
-            'first_name' => ['required', 'string', 'max:255'],
-            'last_name' => ['required', 'string', 'max:255'],
-            'address' => ['nullable', 'string'],
-            'date_of_birth' => ['nullable', 'date'],
-            'mothers_maiden_name' => ['nullable', 'string', 'max:255'],
-            'ssn' => ['nullable', 'string', 'max:255'],
-            'approx_debt' => ['nullable', 'numeric', 'min:0'],
-            'details' => ['nullable', 'string'],
-            'is_dnc' => ['nullable', 'boolean'],
-            'status_id' => ['required', 'exists:statuses,id'],
-            'assigned_to' => ['nullable', 'exists:users,id'],
-            'phones' => ['nullable', 'array'],
-            'phones.*' => ['nullable', 'string', 'max:50'],
-            'emails' => ['nullable', 'array'],
-            'emails.*' => ['nullable', 'string', 'max:255'],
-        ]);
+        $validated = $this->validateLeadPayload($request, true);
 
         if (auth()->user()->isAgent() && (int) $validated['status_id'] === $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG)) {
             return back()->with('error', 'Agent must submit with a non-New status.')->withInput();
+        }
+
+        $callbackStatusId = $this->statusIdsBySlug()['callback'] ?? null;
+        if ($callbackStatusId !== null && (int) $validated['status_id'] === $callbackStatusId) {
+            $callbackAtUtc = $validated['callback_at_utc'] ?? null;
+            if ($callbackAtUtc !== null && $callbackAtUtc !== '') {
+                try {
+                    $callbackAt = \Carbon\Carbon::parse($callbackAtUtc, 'UTC');
+                    if ($callbackAt->isPast()) {
+                        return back()->withErrors(['callback_date' => 'Callback date and time must be in the future.'])->withInput();
+                    }
+                } catch (\Throwable $e) {
+                    return back()->withErrors(['callback_at_utc' => 'Invalid callback date/time.'])->withInput();
+                }
+            } else {
+                $date = $validated['callback_date'] ?? null;
+                $time = $validated['callback_time'] ?? null;
+                if ($date !== null && $date !== '' && $time !== null && $time !== '') {
+                    try {
+                        $callbackAt = \Carbon\Carbon::parse($date . ' ' . $time, config('app.timezone'));
+                        if ($callbackAt->isPast()) {
+                            return back()->withErrors(['callback_date' => 'Callback date and time must be in the future.'])->withInput();
+                        }
+                    } catch (\Throwable $e) {
+                        // validation already ensured date/time format; ignore parse errors
+                    }
+                }
+            }
         }
 
         $lead->update([
@@ -748,10 +878,13 @@ class LeadController extends Controller
             'mothers_maiden_name' => $validated['mothers_maiden_name'],
             'ssn' => $validated['ssn'],
             'approx_debt' => $validated['approx_debt'] ?? null,
+            'fees' => $lead->cards()->sum('fees'),
             'details' => $validated['details'],
             'is_dnc' => $request->boolean('is_dnc'),
             'status_id' => $validated['status_id'],
-            'assigned_to' => auth()->user()->isAdmin() ? ($validated['assigned_to'] ?? null) : $lead->assigned_to,
+            'assigned_to' => $this->shouldUnassignAfterStatusUpdate((int) $validated['status_id'])
+                ? null
+                : (auth()->user()->isAdmin() ? ($validated['assigned_to'] ?? null) : $lead->assigned_to),
         ]);
 
         $lead->phones()->delete();
@@ -761,6 +894,20 @@ class LeadController extends Controller
         $lead->emails()->delete();
         foreach ($this->normalizeLines($validated['emails'] ?? []) as $email) {
             $lead->emails()->create(['email' => $email]);
+        }
+
+        $callbackCreated = $this->createCallbackReminderIfRequested(
+            $lead,
+            (int) $validated['status_id'],
+            $validated['callback_date'] ?? null,
+            $validated['callback_time'] ?? null,
+            $validated['callback_at_utc'] ?? null
+        );
+
+        if (! $callbackCreated) {
+            return redirect()->route('leads.edit', $lead)
+                ->with('error', 'This lead already has a pending callback. You can set a new callback only after the current callback time has passed.')
+                ->withInput();
         }
 
         return redirect()->route('leads.edit', $lead)->with('success', 'Lead updated successfully.');
@@ -785,15 +932,6 @@ class LeadController extends Controller
 
             if ($lead->assigned_to !== auth()->id()) {
                 abort(403, 'You can only view leads assigned to you.');
-            }
-
-            $activeLeadId = Lead::query()
-                ->where('assigned_to', auth()->id())
-                ->where('status_id', $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG))
-                ->value('id');
-
-            if ($activeLeadId && (int) $activeLeadId !== (int) $lead->id) {
-                abort(403, 'Finish your active lead before opening another lead.');
             }
         }
     }
@@ -872,17 +1010,18 @@ class LeadController extends Controller
         $lines[] = '';
         $lines[] = '';
 
-        $chargeAmount = 0.0;
         foreach ($cards as $card) {
             $bn = (string) ($card->bank_name ?? '');
+            if ($card->name_on_card !== null && (string) $card->name_on_card !== '') {
+                $bn .= ' — ' . (string) $card->name_on_card;
+            }
+            $feesLabel = $card->fees !== null && (float) $card->fees > 0
+                ? '$' . $this->formatTxtNumber((float) $card->fees)
+                : '';
             if ($card->charge_card) {
-                $chargeLabel = $card->available_amount !== null
-                    ? '$' . $this->formatTxtNumber((float) $card->available_amount)
-                    : '';
-                $bn .= $chargeLabel !== '' ? " ( Charge Card {$chargeLabel} )" : ' ( Charge Card )';
-                if ($card->available_amount !== null) {
-                    $chargeAmount += (float) $card->available_amount;
-                }
+                $bn .= $feesLabel !== '' ? " ( Charge Card {$feesLabel} )" : ' ( Charge Card )';
+            } elseif ($feesLabel !== '') {
+                $bn .= " ( Fees {$feesLabel} )";
             }
 
             $lines[] = 'BN : ' . $bn;
@@ -897,6 +1036,7 @@ class LeadController extends Controller
             $lines[] = 'Dp : ' . ((string) ($card->due_payment ?? ''));
             $lines[] = 'Apr : ' . $this->formatTxtNumber($card->apr);
             $lines[] = 'Comment : ' . ((string) ($card->comment ?? ''));
+            $lines[] = 'Fees : ' . $this->formatTxtNumber($card->fees);
             $lines[] = '';
         }
 
@@ -907,7 +1047,7 @@ class LeadController extends Controller
 
         $lines[] = 'Tdebt : ' . $this->formatTxtNumber($totalDebt);
         $lines[] = 'Tcards : ' . $cards->count();
-        $lines[] = 'Charge Amount : ' . $this->formatTxtNumber($chargeAmount > 0 ? $chargeAmount : null);
+        $lines[] = 'Charge Amount : ' . $this->formatTxtNumber($cards->sum('fees'));
         $lines[] = '';
         $lines[] = 'Deal : ';
 
@@ -1070,7 +1210,7 @@ class LeadController extends Controller
 
     private function buildAddressFromCsv(array $data): string
     {
-        $address = $this->getCsvColumn($data, ['address', 'street_address', 'street']);
+        $address = $this->getCsvColumn($data, ['Address', 'address', 'street_address', 'street']);
         $city = $this->getCsvColumn($data, ['city']);
         $state = $this->getCsvColumn($data, ['state']);
         $zip = $this->getCsvColumn($data, ['zip', 'zipcode', 'postal_code']);
@@ -1169,6 +1309,7 @@ class LeadController extends Controller
             'apr' => ['nullable', 'numeric', 'min:0'],
             'charge_card' => ['nullable', 'boolean'],
             'comment' => ['nullable', 'string'],
+            'fees' => ['nullable', 'numeric', 'min:0'],
         ]);
     }
 
@@ -1308,7 +1449,117 @@ class LeadController extends Controller
     {
         return Lead::where('assigned_to', auth()->id())
             ->whereIn('status_id', $this->holdingStatusIds())
+            ->whereNull('parent_lead_id')
             ->count();
+    }
+
+    /** @return array<string, mixed> */
+    private function validateLeadPayload(Request $request, bool $includeAssignedTo = false): array
+    {
+        $rules = [
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
+            'address' => ['nullable', 'string'],
+            'date_of_birth' => ['nullable', 'date'],
+            'mothers_maiden_name' => ['nullable', 'string', 'max:255'],
+            'ssn' => ['nullable', 'string', 'max:255'],
+            'approx_debt' => ['nullable', 'numeric', 'min:0'],
+            'fees' => ['nullable', 'numeric', 'min:0'],
+            'details' => ['nullable', 'string'],
+            'is_dnc' => ['nullable', 'boolean'],
+            'status_id' => ['required', 'exists:statuses,id'],
+            'callback_date' => ['nullable', 'date'],
+            'callback_time' => ['nullable', 'date_format:H:i'],
+            'callback_at_utc' => ['nullable', 'string', 'max:64'],
+            'phones' => ['nullable', 'array'],
+            'phones.*' => ['nullable', 'string', 'max:50'],
+            'emails' => ['nullable', 'array'],
+            'emails.*' => ['nullable', 'string', 'max:255'],
+        ];
+
+        if ($includeAssignedTo) {
+            $rules['assigned_to'] = ['nullable', 'exists:users,id'];
+        }
+
+        return $request->validate($rules);
+    }
+
+    /**
+     * Create a callback reminder only if this lead has no pending callback (no existing reminder whose callback time is still in the future).
+     * Callback time can be provided as UTC ISO string (callback_at_utc) or as date+time in app timezone.
+     * Returns true if a reminder was created, false if skipped because a pending callback exists.
+     */
+    private function createCallbackReminderIfRequested(Lead $lead, int $statusId, ?string $callbackDate, ?string $callbackTime, ?string $callbackAtUtc = null): bool
+    {
+        $callbackStatusId = $this->statusIdsBySlug()['callback'] ?? null;
+        if ($callbackStatusId === null || $statusId !== $callbackStatusId) {
+            return true;
+        }
+
+        $callbackAt = null;
+        if ($callbackAtUtc !== null && $callbackAtUtc !== '') {
+            try {
+                $callbackAt = \Carbon\Carbon::parse($callbackAtUtc, 'UTC');
+            } catch (\Throwable $e) {
+                return true;
+            }
+        } elseif ($callbackDate !== null && $callbackDate !== '' && $callbackTime !== null && $callbackTime !== '') {
+            $callbackAt = \Carbon\Carbon::parse($callbackDate . ' ' . $callbackTime, config('app.timezone'));
+        }
+
+        if ($callbackAt === null) {
+            return true;
+        }
+
+        $existing = CrmNotification::query()
+            ->where('entity_type', 'lead')
+            ->where('entity_id', $lead->id)
+            ->where('type', 'callback.reminder')
+            ->get();
+
+        foreach ($existing as $notification) {
+            $at = $notification->meta['callback_at'] ?? null;
+            if ($at !== null && $at !== '' && \Carbon\Carbon::parse($at)->isFuture()) {
+                return false;
+            }
+        }
+
+        $minutes = (int) (Setting::get('callback_reminder_minutes', '15') ?? 15);
+        $notifyAt = $callbackAt->copy()->subMinutes($minutes);
+        $targetUserId = $lead->assigned_to ?? auth()->id();
+        if ($targetUserId === null) {
+            return true;
+        }
+
+        $callbackAtUtcString = $callbackAt->utc()->toIso8601String();
+
+        CrmNotification::query()
+            ->where('entity_type', 'lead')
+            ->where('entity_id', $lead->id)
+            ->where('type', 'callback.reminder')
+            ->where('notify_at', '>', now())
+            ->delete();
+
+        CrmNotification::query()->create([
+            'created_by' => auth()->id(),
+            'target_user_id' => (int) $targetUserId,
+            'type' => 'callback.reminder',
+            'entity_type' => 'lead',
+            'entity_id' => $lead->id,
+            'title' => 'Callback: ' . $lead->fullName(),
+            'message' => 'Scheduled for ' . $callbackAt->copy()->setTimezone(config('app.timezone'))->format('M j, Y g:i A') . '.',
+            'action_url' => route('leads.edit', $lead),
+            'notify_at' => $notifyAt,
+            'sent_at' => null,
+            'status' => 'sent',
+            'priority' => 'normal',
+            'meta' => [
+                'lead_id' => $lead->id,
+                'callback_at' => $callbackAtUtcString,
+            ],
+        ]);
+
+        return true;
     }
 
     private function agentHistoryLimit(): int
@@ -1321,12 +1572,12 @@ class LeadController extends Controller
 
     private function nextAvailableLead(Request $request): ?Lead
     {
-        $newStatusId = $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG);
+        $queueStatusIds = $this->queueAssignableStatusIds();
         $skipped = $request->session()->get('agent_skipped_lead_ids', []);
 
-        $query = Lead::with('status')
+        $query = Lead::with(['status', 'phones'])
             ->whereNull('assigned_to')
-            ->where('status_id', $newStatusId)
+            ->whereIn('status_id', $queueStatusIds)
             ->where('is_dnc', false)
             ->orderBy('id');
 
@@ -1338,14 +1589,36 @@ class LeadController extends Controller
 
         if (! $lead && ! empty($skipped)) {
             $request->session()->forget('agent_skipped_lead_ids');
-            $lead = Lead::with('status')
+            $lead = Lead::with(['status', 'phones'])
                 ->whereNull('assigned_to')
-                ->where('status_id', $newStatusId)
+                ->whereIn('status_id', $queueStatusIds)
                 ->where('is_dnc', false)
                 ->orderBy('id')
                 ->first();
         }
 
         return $lead;
+    }
+
+    /** @return array<int> */
+    private function queueAssignableStatusIds(): array
+    {
+        $statusIdsBySlug = $this->statusIdsBySlug();
+        $ids = [];
+
+        foreach ([self::ACTIVE_STATUS_SLUG, 'not-interested'] as $slug) {
+            if (isset($statusIdsBySlug[$slug])) {
+                $ids[] = $statusIdsBySlug[$slug];
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    private function shouldUnassignAfterStatusUpdate(int $statusId): bool
+    {
+        $notInterestedId = $this->statusIdsBySlug()['not-interested'] ?? null;
+
+        return $notInterestedId !== null && $statusId === (int) $notInterestedId;
     }
 }

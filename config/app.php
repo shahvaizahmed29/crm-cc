@@ -123,4 +123,16 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Notification polling interval (seconds)
+    |--------------------------------------------------------------------------
+    |
+    | How often the front-end polls for new notifications (navbar badge/dropdown).
+    | Value in seconds; converted to milliseconds for JavaScript. Default: 3.
+    |
+    */
+
+    'notification_poll_seconds' => (int) env('NOTIFICATION_POLL_SECONDS', 3),
+
 ];

@@ -6,14 +6,17 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Lead extends Model
 {
     use HasFactory;
+    use SoftDeletes;
 
     protected $fillable = [
         'status_id',
         'assigned_to',
+        'parent_lead_id',
         'first_name',
         'last_name',
         'address',
@@ -21,6 +24,7 @@ class Lead extends Model
         'mothers_maiden_name',
         'ssn',
         'approx_debt',
+        'fees',
         'details',
         'is_dnc',
     ];
@@ -30,6 +34,7 @@ class Lead extends Model
         return [
             'date_of_birth' => 'date',
             'approx_debt' => 'decimal:2',
+            'fees' => 'decimal:2',
             'is_dnc' => 'boolean',
         ];
     }
@@ -42,6 +47,11 @@ class Lead extends Model
     public function assignedTo(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function parentLead(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_lead_id');
     }
 
     public function phones(): HasMany
@@ -67,6 +77,11 @@ class Lead extends Model
     public function creditReports(): HasMany
     {
         return $this->hasMany(CreditReport::class)->latest();
+    }
+
+    public function relatedLeads(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_lead_id')->latest();
     }
 
     public function fullName(): string

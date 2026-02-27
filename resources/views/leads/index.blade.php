@@ -109,19 +109,79 @@
 </div>
 @endif
 
-<div class="mt-6 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+@php
+    $storageKey = 'leads_table_columns' . ($isAdmin ? '_admin' : '');
+@endphp
+<div class="mt-6 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200" x-data="{
+    availableColumns: @js($availableColumns),
+    defaultColumns: @js($defaultColumns),
+    storageKey: @js($storageKey),
+    selectedColumns: [],
+    open: false,
+    init() {
+        try {
+            const saved = localStorage.getItem(this.storageKey);
+            this.selectedColumns = saved ? JSON.parse(saved) : this.defaultColumns.slice();
+        } catch (e) {
+            this.selectedColumns = this.defaultColumns.slice();
+        }
+        if (!Array.isArray(this.selectedColumns) || this.selectedColumns.length === 0) {
+            this.selectedColumns = this.defaultColumns.slice();
+        }
+    },
+    toggle(colId) {
+        const i = this.selectedColumns.indexOf(colId);
+        if (i === -1) this.selectedColumns.push(colId);
+        else this.selectedColumns.splice(i, 1);
+        this.save();
+    },
+    isVisible(colId) {
+        return this.selectedColumns.indexOf(colId) !== -1;
+    },
+    save() {
+        try {
+            localStorage.setItem(this.storageKey, JSON.stringify(this.selectedColumns));
+        } catch (e) {}
+    },
+    resetColumns() {
+        this.selectedColumns = this.defaultColumns.slice();
+        this.save();
+    }
+}">
+    <div class="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2">
+        <span class="text-sm font-medium text-slate-600">Leads table</span>
+        <div class="relative">
+            <button type="button" @click="open = !open" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+                <i class="fa-solid fa-columns text-slate-500"></i> Columns
+            </button>
+            <div x-show="open" x-cloak @click.outside="open = false"
+                 class="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white py-2 shadow-lg ring-1 ring-black/5">
+                <div class="px-3 py-1.5 text-xs font-semibold text-slate-500">Show columns</div>
+                <template x-for="col in availableColumns" :key="col.id">
+                    <label class="flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-slate-50">
+                        <input type="checkbox" :checked="isVisible(col.id)" @change="toggle(col.id)" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                        <span class="text-sm text-slate-700" x-text="col.label"></span>
+                    </label>
+                </template>
+                <div class="mt-2 border-t border-slate-100 pt-2 px-3">
+                    <button type="button" @click="resetColumns(); open = false" class="text-xs font-medium text-sky-600 hover:text-sky-500">Reset to default</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-200">
             <thead class="bg-slate-50">
                 <tr>
-                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Name</th>
-                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Status</th>
-                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Total Debt</th>
-                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Last Update</th>
-                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">DNC</th>
-                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Contacts</th>
+                    <th x-show="isVisible('name')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="name">Name</th>
+                    <th x-show="isVisible('status')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="status">Status</th>
+                    <th x-show="isVisible('total_debt')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="total_debt">Total Debt</th>
+                    <th x-show="isVisible('fees')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="fees">Fees</th>
+                    <th x-show="isVisible('last_update')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="last_update">Last Update</th>
+                    <th x-show="isVisible('dnc')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="dnc">DNC</th>
+                    <th x-show="isVisible('contacts')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="contacts">Contacts</th>
                     @if($isAdmin)
-                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Assigned To</th>
+                    <th x-show="isVisible('assigned_to')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="assigned_to">Assigned To</th>
                     @endif
                     <th scope="col" class="relative px-4 py-3"><span class="sr-only">Options</span></th>
                 </tr>
@@ -129,22 +189,25 @@
             <tbody class="divide-y divide-slate-200 bg-white">
                 @forelse($leads as $lead)
                 <tr>
-                    <td class="whitespace-nowrap px-4 py-3">
+                    <td x-show="isVisible('name')" class="whitespace-nowrap px-4 py-3" data-column="name">
                         <a href="{{ route('leads.show', $lead) }}" class="font-medium text-sky-600 hover:text-sky-500">{{ $lead->fullName() }}</a>
                     </td>
-                    <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">{{ $lead->status->name }}</td>
-                    <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
+                    <td x-show="isVisible('status')" class="whitespace-nowrap px-4 py-3 text-sm text-slate-600" data-column="status">{{ $lead->status->name }}</td>
+                    <td x-show="isVisible('total_debt')" class="whitespace-nowrap px-4 py-3 text-sm text-slate-600" data-column="total_debt">
                         @if($lead->approx_debt) ${{ number_format($lead->approx_debt, 2) }} @else — @endif
                     </td>
-                    <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">{{ $lead->updated_at->format('Y-m-d H:i') }}</td>
-                    <td class="whitespace-nowrap px-4 py-3 text-sm">
+                    <td x-show="isVisible('fees')" class="whitespace-nowrap px-4 py-3 text-sm text-slate-600" data-column="fees">
+                        @if($lead->fees) ${{ number_format($lead->fees, 2) }} @else — @endif
+                    </td>
+                    <td x-show="isVisible('last_update')" class="whitespace-nowrap px-4 py-3 text-sm text-slate-600" data-column="last_update">{{ $lead->updated_at->format('Y-m-d H:i') }}</td>
+                    <td x-show="isVisible('dnc')" class="whitespace-nowrap px-4 py-3 text-sm" data-column="dnc">
                         @if($lead->is_dnc)
                         <span class="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">DNC</span>
                         @else
                         <span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">No</span>
                         @endif
                     </td>
-                    <td class="px-4 py-3 text-sm text-slate-600">
+                    <td x-show="isVisible('contacts')" class="px-4 py-3 text-sm text-slate-600" data-column="contacts">
                         {{-- Eye trigger --}}
                         <!-- <button type="button"
                             class="inline-flex items-center gap-1 cursor-pointer select-none text-sky-600 hover:text-sky-500"
@@ -248,7 +311,7 @@
 
                     </td>
                     @if($isAdmin)
-                    <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">{{ $lead->assignedTo?->displayName() ?? '—' }}</td>
+                    <td x-show="isVisible('assigned_to')" class="whitespace-nowrap px-4 py-3 text-sm text-slate-600" data-column="assigned_to">{{ $lead->assignedTo?->displayName() ?? '—' }}</td>
                     @endif
                     <td class="whitespace-nowrap px-4 py-3 text-right">
                         <div class="flex items-center justify-end gap-2">
@@ -256,6 +319,13 @@
                                 <a href="{{ route('leads.download.txt', $lead) }}" class="w-6 h-6 flex items-center justify-center text-indigo-500 hover:text-indigo-600 text-xs rounded-full transition-all cursor-pointer" title="Download TXT">
                                     <i class="fa-solid fa-download"></i>
                                 </a>
+                                <form action="{{ route('leads.destroy', $lead) }}" method="POST" onsubmit="return confirm('Soft delete this lead?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="w-6 h-6 flex items-center justify-center text-red-500 hover:text-red-600 text-xs rounded-full transition-all cursor-pointer" title="Delete Lead">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </form>
                             @endif
                             <a href="{{ route('leads.edit', $lead) }}" class="w-6 h-6 flex items-center justify-center text-blue-500 hover:text-blue-600 text-xs rounded-full transition-all cursor-pointer" title="Edit">
                                 <i class="fa-solid fa-pencil"></i>
@@ -265,7 +335,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="{{ $isAdmin ? 8 : 7 }}" class="px-4 py-8 text-center text-sm text-slate-500">No leads yet.</td>
+                    <td colspan="20" class="px-4 py-8 text-center text-sm text-slate-500">No leads yet.</td>
                 </tr>
                 @endforelse
             </tbody>
