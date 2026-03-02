@@ -26,6 +26,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
             'agent' => \App\Http\Middleware\EnsureUserIsAgent::class,
         ]);
+
+        $middleware->web(append: [
+            \App\Http\Middleware\EnsureIpWhitelisted::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

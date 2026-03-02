@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'ip_whitelist_recovery' => [
+        'token' => env('IP_WHITELIST_RECOVERY_TOKEN'),
+    ],
+
 ];

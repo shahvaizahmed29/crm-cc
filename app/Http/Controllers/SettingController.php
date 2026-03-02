@@ -25,6 +25,7 @@ class SettingController extends Controller
         $holdingStatusSlugs = Setting::getJsonArray('holding_status_slugs', self::DEFAULT_HOLDING_SLUGS);
         $crSoundNotificationsEnabled = Setting::get('cr_sound_notifications_enabled', '1') === '1';
         $callbackReminderMinutes = (int) (Setting::get('callback_reminder_minutes', '15') ?? '15');
+        $ipWhitelist = Setting::getIpWhitelistCached();
         $statuses = Status::orderBy('name')->get(['id', 'name', 'slug']);
 
         return view('settings.index', [
@@ -32,6 +33,7 @@ class SettingController extends Controller
             'holdingStatusSlugs' => $holdingStatusSlugs,
             'crSoundNotificationsEnabled' => $crSoundNotificationsEnabled,
             'callbackReminderMinutes' => $callbackReminderMinutes,
+            'ipWhitelist' => $ipWhitelist,
             'statuses' => $statuses,
         ]);
     }
@@ -44,6 +46,7 @@ class SettingController extends Controller
             'holding_status_slugs.*' => ['string', 'exists:statuses,slug'],
             'cr_sound_notifications_enabled' => ['required', 'boolean'],
             'callback_reminder_minutes' => ['required', 'integer', 'min:1', 'max:1440'],
+            'ip_whitelist' => ['nullable', 'string'],
         ]);
 
         Setting::put('agent_history_limit', (string) $validated['agent_history_limit']);
@@ -52,6 +55,14 @@ class SettingController extends Controller
         Setting::putJsonArray('holding_status_slugs', $slugs);
         Setting::put('cr_sound_notifications_enabled', $validated['cr_sound_notifications_enabled'] ? '1' : '0');
         Setting::put('callback_reminder_minutes', (string) $validated['callback_reminder_minutes']);
+
+        $ipRaw = $validated['ip_whitelist'] ?? '';
+        $ipList = array_values(array_unique(array_filter(
+            array_map('trim', preg_split('/[\r\n,]+/', $ipRaw)),
+            fn (string $ip) => $ip !== ''
+        )));
+        Setting::putJsonArray('ip_whitelist', $ipList);
+        Setting::clearIpWhitelistCache();
 
         return redirect()->route('settings.index')->with('success', 'Settings saved.');
     }

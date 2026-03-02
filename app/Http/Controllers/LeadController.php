@@ -1012,9 +1012,6 @@ class LeadController extends Controller
 
         foreach ($cards as $card) {
             $bn = (string) ($card->bank_name ?? '');
-            if ($card->name_on_card !== null && (string) $card->name_on_card !== '') {
-                $bn .= ' — ' . (string) $card->name_on_card;
-            }
             $feesLabel = $card->fees !== null && (float) $card->fees > 0
                 ? '$' . $this->formatTxtNumber((float) $card->fees)
                 : '';
@@ -1025,6 +1022,7 @@ class LeadController extends Controller
             }
 
             $lines[] = 'BN : ' . $bn;
+            $lines[] = 'Card holder name : ' . ((string) ($card->name_on_card ?? ''));
             $lines[] = 'BT : ' . ((string) ($card->bank_tollfree ?? ''));
             $lines[] = 'CC : ' . ((string) ($card->card_number ?? ''));
             $lines[] = 'Exp : ' . ((string) ($card->card_expiry ?? ''));

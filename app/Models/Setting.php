@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class Setting extends Model
 {
+    public const IP_WHITELIST_CACHE_KEY = 'ip_whitelist';
+
     protected $fillable = [
         'key',
         'value',
@@ -41,5 +44,20 @@ class Setting extends Model
     public static function putJsonArray(string $key, array $value): void
     {
         static::put($key, json_encode(array_values($value)));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function getIpWhitelistCached(): array
+    {
+        return Cache::rememberForever(self::IP_WHITELIST_CACHE_KEY, function (): array {
+            return static::getJsonArray('ip_whitelist', []);
+        });
+    }
+
+    public static function clearIpWhitelistCache(): void
+    {
+        Cache::forget(self::IP_WHITELIST_CACHE_KEY);
     }
 }

@@ -139,6 +139,30 @@
         @enderror
     </div>
 
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">IP whitelist</h2>
+        <p class="mt-1 text-sm text-slate-500">Only these IP addresses can access the application. One IP per line. Leave empty to allow all IPs.</p>
+        <div class="mt-3">
+            <label for="ip_whitelist" class="block text-sm font-medium text-slate-700">Whitelisted IPs</label>
+            <textarea
+                name="ip_whitelist"
+                id="ip_whitelist"
+                rows="6"
+                placeholder="127.0.0.1&#10;192.168.1.1"
+                class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+            >{{ old('ip_whitelist', implode("\n", $ipWhitelist)) }}</textarea>
+            <p class="mt-1 text-xs text-slate-500">One IP per line. Comma-separated is also accepted.</p>
+        </div>
+        <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <p class="font-medium">Recovery URL</p>
+            <p class="mt-1">If you remove all IPs by mistake, use the recovery page to add your IP again: <code class="break-all rounded bg-amber-100 px-1">{{ url('ip-whitelist-recovery') }}?token=YOUR_TOKEN</code></p>
+            <p class="mt-2 text-xs">Set <code class="rounded bg-amber-100 px-1">IP_WHITELIST_RECOVERY_TOKEN</code> in your <code class="rounded bg-amber-100 px-1">.env</code> file and use it as the <code class="rounded bg-amber-100 px-1">token</code> query parameter. Keep this URL and token secret.</p>
+        </div>
+        @error('ip_whitelist')
+            <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
+        @enderror
+    </div>
+
     <div>
         <button type="submit" class="inline-flex justify-center rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-500">Save settings</button>
     </div>

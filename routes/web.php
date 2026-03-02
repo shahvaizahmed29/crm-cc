@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CreditReportController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\IpWhitelistRecoveryController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
@@ -11,6 +12,9 @@ use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('login'));
+
+Route::get('ip-whitelist-recovery', [IpWhitelistRecoveryController::class, 'show'])->name('ip-whitelist.recovery.show');
+Route::post('ip-whitelist-recovery', [IpWhitelistRecoveryController::class, 'update'])->name('ip-whitelist.recovery.update');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthController::class, 'showLoginForm'])->name('login');
