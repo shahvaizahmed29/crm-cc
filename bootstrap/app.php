@@ -27,7 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'agent' => \App\Http\Middleware\EnsureUserIsAgent::class,
         ]);
 
-        $middleware->web(append: [
+        $middleware->web(prepend: [
             \App\Http\Middleware\EnsureIpWhitelisted::class,
         ]);
     })

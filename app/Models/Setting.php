@@ -51,9 +51,22 @@ class Setting extends Model
      */
     public static function getIpWhitelistCached(): array
     {
-        return Cache::rememberForever(self::IP_WHITELIST_CACHE_KEY, function (): array {
-            return static::getJsonArray('ip_whitelist', []);
-        });
+        $whitelist = Cache::get(self::IP_WHITELIST_CACHE_KEY);
+
+        if ($whitelist === null) {
+            $whitelist = static::getJsonArray('ip_whitelist', []);
+            Cache::forever(self::IP_WHITELIST_CACHE_KEY, $whitelist);
+        }
+
+        if ($whitelist === [] && static::get('ip_whitelist') !== null && static::get('ip_whitelist') !== '') {
+            $whitelist = static::getJsonArray('ip_whitelist', []);
+            static::clearIpWhitelistCache();
+            if ($whitelist !== []) {
+                Cache::forever(self::IP_WHITELIST_CACHE_KEY, $whitelist);
+            }
+        }
+
+        return is_array($whitelist) ? $whitelist : [];
     }
 
     public static function clearIpWhitelistCache(): void
