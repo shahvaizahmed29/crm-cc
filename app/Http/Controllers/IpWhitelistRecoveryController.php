@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Setting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\View\View;
 
 class IpWhitelistRecoveryController extends Controller
@@ -50,6 +51,8 @@ class IpWhitelistRecoveryController extends Controller
 
         Setting::putJsonArray('ip_whitelist', $ips);
         Setting::clearIpWhitelistCache();
+
+        Artisan::call('config:clear');
 
         return redirect()
             ->route('ip-whitelist.recovery.show', ['token' => $token])

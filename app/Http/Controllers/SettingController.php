@@ -8,6 +8,7 @@ use App\Models\Setting;
 use App\Models\Status;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\View\View;
 
 class SettingController extends Controller
@@ -63,6 +64,8 @@ class SettingController extends Controller
         )));
         Setting::putJsonArray('ip_whitelist', $ipList);
         Setting::clearIpWhitelistCache();
+
+        Artisan::call('config:clear');
 
         return redirect()->route('settings.index')->with('success', 'Settings saved.');
     }
