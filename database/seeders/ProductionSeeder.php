@@ -98,8 +98,8 @@ class ProductionSeeder extends Seeder
             return;
         }
 
-        $email = 'nabeel@admin.com';
-        $password = 'nabee1@cccrm@2026!!';
+        $email = 'jonny@bestccever.com';
+        $password = 'jonn1950@cccrm@2026!!';
 
         $user = User::firstOrCreate(
             ['email' => $email],
