@@ -378,6 +378,7 @@ class LeadController extends Controller
         }
 
         $created = 0;
+        $updated = 0;
         $errors = [];
         $failedRows = [];
         $totalRows = 0;
@@ -425,32 +426,68 @@ class LeadController extends Controller
                     : 'Middle Name: ' . $middleName;
             }
 
+            $address = $this->buildAddressFromCsv($data);
+            $dateOfBirth = $this->parseDateOfBirthFromCsv($this->getCsvColumn($data, ['Dob', 'date_of_birth', 'dob', 'date of birth']));
+            $csvPhones = $this->normalizeLines($this->csvPhonesFromData($data));
+            $csvEmails = $this->normalizeLines($this->csvEmailsFromData($data));
+
             try {
-                DB::transaction(function () use ($data, $firstName, $lastName, $statusId, $assignedTo, $details, &$created) {
-                    $lead = Lead::create([
-                        'first_name' => $firstName,
-                        'last_name' => $lastName,
-                        'address' => $this->buildAddressFromCsv($data),
-                        'date_of_birth' => $this->parseDate($this->getCsvColumn($data, ['Dob', 'date_of_birth', 'dob', 'date of birth'])),
-                        'mothers_maiden_name' => $this->getCsvColumn($data, ['mothers_maiden_name', 'mmn']),
-                        'ssn' => $this->getCsvColumn($data, ['ssn']),
-                        'approx_debt' => $this->parseDecimal($this->getCsvColumn($data, ['Debt', 'approx_debt', 'debt'])),
-                        'fees' => $this->parseDecimal($this->getCsvColumn($data, ['Fees', 'fees', 'fee'])),
-                        'details' => $details !== '' ? $details : null,
-                        'is_dnc' => $this->parseBoolean($this->getCsvColumn($data, ['is_dnc', 'dnc'])),
-                        'status_id' => $statusId,
-                        'assigned_to' => $assignedTo,
-                    ]);
+                DB::transaction(function () use ($data, $firstName, $lastName, $address, $dateOfBirth, $csvPhones, $csvEmails, $statusId, $assignedTo, $details, &$created, &$updated) {
+                    $existingLead = $this->findExistingLeadByAddressPhone($address, $csvPhones);
 
-                    foreach ($this->normalizeLines($this->csvPhonesFromData($data)) as $p) {
-                        $lead->phones()->create(['phone' => $p]);
+                    if ($existingLead !== null) {
+                        $existingLead->update([
+                            'first_name' => $firstName,
+                            'last_name' => $lastName,
+                            'address' => $address,
+                            'date_of_birth' => $dateOfBirth,
+                            'mothers_maiden_name' => $this->getCsvColumn($data, ['mothers_maiden_name', 'mmn']),
+                            'ssn' => $this->getCsvColumn($data, ['ssn']),
+                            'approx_debt' => $this->parseDecimal($this->getCsvColumn($data, ['Debt', 'approx_debt', 'debt'])),
+                            'fees' => $this->parseDecimal($this->getCsvColumn($data, ['Fees', 'fees', 'fee'])),
+                            'details' => $details !== '' ? $details : null,
+                            'is_dnc' => $this->parseBoolean($this->getCsvColumn($data, ['is_dnc', 'dnc'])),
+                            'status_id' => $statusId,
+                            'assigned_to' => $assignedTo,
+                        ]);
+
+                        $existingLead->phones()->delete();
+                        foreach ($csvPhones as $p) {
+                            $existingLead->phones()->create(['phone' => $p]);
+                        }
+
+                        $existingLead->emails()->delete();
+                        foreach ($csvEmails as $e) {
+                            $existingLead->emails()->create(['email' => $e]);
+                        }
+
+                        $updated++;
+                    } else {
+                        $lead = Lead::create([
+                            'first_name' => $firstName,
+                            'last_name' => $lastName,
+                            'address' => $address,
+                            'date_of_birth' => $dateOfBirth,
+                            'mothers_maiden_name' => $this->getCsvColumn($data, ['mothers_maiden_name', 'mmn']),
+                            'ssn' => $this->getCsvColumn($data, ['ssn']),
+                            'approx_debt' => $this->parseDecimal($this->getCsvColumn($data, ['Debt', 'approx_debt', 'debt'])),
+                            'fees' => $this->parseDecimal($this->getCsvColumn($data, ['Fees', 'fees', 'fee'])),
+                            'details' => $details !== '' ? $details : null,
+                            'is_dnc' => $this->parseBoolean($this->getCsvColumn($data, ['is_dnc', 'dnc'])),
+                            'status_id' => $statusId,
+                            'assigned_to' => $assignedTo,
+                        ]);
+
+                        foreach ($csvPhones as $p) {
+                            $lead->phones()->create(['phone' => $p]);
+                        }
+
+                        foreach ($csvEmails as $e) {
+                            $lead->emails()->create(['email' => $e]);
+                        }
+
+                        $created++;
                     }
-
-                    foreach ($this->normalizeLines($this->csvEmailsFromData($data)) as $e) {
-                        $lead->emails()->create(['email' => $e]);
-                    }
-
-                    $created++;
                 });
             } catch (\Throwable $e) {
                 $reason = 'Row error: ' . $e->getMessage();
@@ -467,7 +504,7 @@ class LeadController extends Controller
             $failedPath = $this->storeFailedRowsCsv($history->id, $header, $failedRows);
         }
 
-        $skipped = max(0, $totalRows - $created);
+        $skipped = max(0, $totalRows - $created - $updated);
         $history->update([
             'total_rows' => $totalRows,
             'created_rows' => $created,
@@ -476,7 +513,9 @@ class LeadController extends Controller
             'failed_rows_file_path' => $failedPath,
         ]);
 
-        $message = "{$created} lead(s) imported from {$totalRows} row(s).";
+        $message = $created + $updated > 0
+            ? "{$created} lead(s) created, {$updated} lead(s) updated from {$totalRows} row(s)."
+            : "No leads created or updated from {$totalRows} row(s).";
         if (count($errors) > 0) {
             $message .= ' ' . count($errors) . ' row(s) skipped or failed.';
             return redirect()->route('leads.import.form')->with('success', $message)->with('import_errors', $errors);
@@ -953,6 +992,59 @@ class LeadController extends Controller
         return $out;
     }
 
+    /**
+     * Find an existing lead matching address and at least one phone number.
+     * Used on CSV import to update instead of create when both match.
+     */
+    private function findExistingLeadByAddressPhone(string $address, array $phoneNumbers): ?Lead
+    {
+        $addressNorm = $this->normalizeAddressForMatch($address);
+        $phoneDigitsList = array_values(array_filter(array_map(
+            fn (string $p) => $this->normalizePhoneToDigits($p),
+            $phoneNumbers
+        )));
+
+        if ($addressNorm === '' || $phoneDigitsList === []) {
+            return null;
+        }
+
+        $leadIdsWithMatchingPhone = LeadPhone::query()
+            ->get()
+            ->filter(fn (LeadPhone $ph) => in_array($this->normalizePhoneToDigits($ph->phone), $phoneDigitsList, true))
+            ->pluck('lead_id')
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($leadIdsWithMatchingPhone === []) {
+            return null;
+        }
+
+        $candidates = Lead::query()
+            ->with('phones')
+            ->whereIn('id', $leadIdsWithMatchingPhone)
+            ->get();
+
+        foreach ($candidates as $lead) {
+            if ($this->normalizeAddressForMatch($lead->address ?? '') === $addressNorm) {
+                return $lead;
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeAddressForMatch(string $address): string
+    {
+        $v = trim(preg_replace('/[\s\t\n\r]+/u', ' ', $address));
+        return strtolower($v);
+    }
+
+    private function normalizePhoneToDigits(string $phone): string
+    {
+        return preg_replace('/\D/', '', $phone);
+    }
+
     private function applyAdminListFilters(Builder $query, Request $request): void
     {
         $newStatusId = $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG);
@@ -1354,6 +1446,32 @@ class LeadController extends Controller
         $value = trim((string) $value);
         try {
             return \Carbon\Carbon::parse($value)->format('Y-m-d');
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Parse date of birth from CSV column. Handles:
+     * - Trailing age in parentheses, e.g. "09/17/1959 (65)" -> age is ignored
+     * - Unknown day as XX, e.g. "08/XX/1961 (64)" -> stored as first of month (1961-08-01)
+     * Expects MM/DD/YYYY (or MM/XX/YYYY) after stripping age.
+     */
+    private function parseDateOfBirthFromCsv(?string $value): ?string
+    {
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+        $value = trim((string) $value);
+        $value = preg_replace('/\s*\(\d+\)\s*$/', '', $value);
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+        $value = preg_replace('/\bXX\b/i', '01', $value);
+        try {
+            $date = \Carbon\Carbon::createFromFormat('m/d/Y', $value);
+            return $date !== false ? $date->format('Y-m-d') : null;
         } catch (\Throwable) {
             return null;
         }
