@@ -140,6 +140,27 @@
     </div>
 
     <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">New leads notification threshold</h2>
+        <p class="mt-1 text-sm text-slate-500">Notify admins of new/unassigned leads only when the current new leads count is below this number. Leave empty to always notify.</p>
+        <div class="mt-3">
+            <label for="new_leads_notification_threshold" class="sr-only">New leads notification threshold</label>
+            <input
+                type="number"
+                name="new_leads_notification_threshold"
+                id="new_leads_notification_threshold"
+                min="0"
+                max="10000"
+                placeholder="e.g. 10"
+                value="{{ old('new_leads_notification_threshold', $newLeadsNotificationThreshold) }}"
+                class="rounded-md border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500"
+            >
+        </div>
+        @error('new_leads_notification_threshold')
+            <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
+        @enderror
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 class="text-base font-semibold text-slate-900">IP whitelist</h2>
         <p class="mt-1 text-sm text-slate-500">Only these IP addresses can access the application. One IP per line. Leave empty to allow all IPs.</p>
         <div class="mt-3">

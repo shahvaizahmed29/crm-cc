@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -147,14 +148,84 @@ class LeadController extends Controller
 
     public function adminNewLeads(Request $request): View
     {
-        $newStatusId = $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG);
-        $leads = Lead::with(['assignedTo', 'phones', 'emails'])
-            ->where('status_id', $newStatusId)
+        $leads = $this->newLeadsQuery()
+            ->with(['assignedTo', 'status', 'phones', 'emails'])
             ->latest('updated_at')
             ->paginate(20)
             ->withQueryString();
 
         return view('leads.new', compact('leads'));
+    }
+
+    public function newLeadsCount(): JsonResponse
+    {
+        if (! auth()->user()->isAdmin()) {
+            abort(403);
+        }
+
+        $count = $this->newLeadsQuery()->count();
+
+        return response()->json(['count' => $count]);
+    }
+
+    /** Leads that have status "new" or are not assigned to any user. */
+    private function newLeadsQuery(): Builder
+    {
+        $newStatusId = $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG);
+
+        return Lead::query()->where(function (Builder $q) use ($newStatusId): void {
+            $q->where('status_id', $newStatusId)->orWhereNull('assigned_to');
+        });
+    }
+
+    private function isLeadNewOrUnassigned(Lead $lead): bool
+    {
+        $newStatusId = $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG);
+
+        return (int) $lead->status_id === (int) $newStatusId || $lead->assigned_to === null;
+    }
+
+    private function notifyAdminsOfNewLeadIfApplicable(Lead $lead): void
+    {
+        if (! $this->isLeadNewOrUnassigned($lead)) {
+            return;
+        }
+
+        $thresholdRaw = Setting::get('new_leads_notification_threshold', '');
+        if ($thresholdRaw !== '' && $thresholdRaw !== null) {
+            $threshold = (int) $thresholdRaw;
+            $currentNewLeadsCount = $this->newLeadsQuery()->count();
+            if ($currentNewLeadsCount >= $threshold) {
+                return;
+            }
+        }
+
+        $adminIds = User::query()
+            ->whereHas('roles', fn ($q) => $q->where('slug', 'admin'))
+            ->pluck('id');
+
+        $notifyAt = now();
+        $title = 'New lead: ' . $lead->fullName();
+        $message = 'Lead has status New or is unassigned.';
+        $actionUrl = route('leads.edit', $lead);
+
+        foreach ($adminIds as $adminId) {
+            CrmNotification::query()->create([
+                'created_by' => auth()->id(),
+                'target_user_id' => (int) $adminId,
+                'type' => 'new_lead',
+                'entity_type' => 'lead',
+                'entity_id' => $lead->id,
+                'title' => $title,
+                'message' => $message,
+                'action_url' => $actionUrl,
+                'notify_at' => $notifyAt,
+                'sent_at' => $notifyAt,
+                'status' => 'sent',
+                'priority' => 'normal',
+                'meta' => ['lead_id' => $lead->id],
+            ]);
+        }
     }
 
     public function agentQueue(Request $request): View
@@ -486,6 +557,7 @@ class LeadController extends Controller
                             $lead->emails()->create(['email' => $e]);
                         }
 
+                        $this->notifyAdminsOfNewLeadIfApplicable($lead);
                         $created++;
                     }
                 });
@@ -668,6 +740,8 @@ class LeadController extends Controller
             $lead->emails()->create(['email' => $email]);
         }
 
+        $this->notifyAdminsOfNewLeadIfApplicable($lead);
+
         return redirect()->route('leads.index')->with('success', 'Lead created successfully.');
     }
 
@@ -720,6 +794,8 @@ class LeadController extends Controller
         foreach ($this->normalizeLines($validated['emails'] ?? []) as $email) {
             $relatedLead->emails()->create(['email' => $email]);
         }
+
+        $this->notifyAdminsOfNewLeadIfApplicable($relatedLead);
 
         return redirect()->route('leads.edit', $relatedLead)->with('success', 'Related lead added successfully.');
     }

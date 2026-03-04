@@ -48,7 +48,12 @@
                     <a href="{{ route('agent.queue') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('agent.queue') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Queue</a>
                     @endif
                     @if(auth()->user()->isAdmin())
-                    <a href="{{ route('leads.new.index') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('leads.new.index') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">New Leads</a>
+                    <a href="{{ route('leads.new.index') }}" class="relative shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('leads.new.index') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
+                        New Leads
+                        <span class="js-new-leads-badge ml-1 hidden items-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                            <span class="js-new-leads-count">0</span>
+                        </span>
+                    </a>
                     @endif
                     <a href="{{ route('leads.index') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('leads.*') && !request()->routeIs('leads.new.index') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Leads</a>
                     <a href="{{ route('callbacks.index') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('callbacks.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Callbacks</a>
@@ -119,7 +124,12 @@
                     <a href="{{ route('agent.queue') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('agent.queue') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Queue</a>
                     @endif
                     @if(auth()->user()->isAdmin())
-                    <a href="{{ route('leads.new.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('leads.new.index') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">New Leads</a>
+                    <a href="{{ route('leads.new.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('leads.new.index') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
+                        New Leads
+                        <span class="js-new-leads-badge ml-1 hidden items-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                            <span class="js-new-leads-count">0</span>
+                        </span>
+                    </a>
                     @endif
                     <a href="{{ route('leads.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('leads.*') && !request()->routeIs('leads.new.index') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Leads</a>
                     <a href="{{ route('callbacks.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('callbacks.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Callbacks</a>
@@ -193,6 +203,7 @@
             const pollIntervalMs = pollIntervalSeconds * 1000;
             const recentEndpoint = '{{ route('notifications.recent') }}';
             const crNotificationsEndpoint = '{{ route('notifications.unread-count', ['type_prefix' => 'cr']) }}';
+            const newLeadsCountEndpoint = '{{ route('leads.new.count') }}';
             const alertSoundUrl = '{{ asset('sounds/notification.wav') }}';
             const crSoundEnabled = {{ \App\Models\Setting::get('cr_sound_notifications_enabled', '1') === '1' ? 'true' : 'false' }};
             const isCrReportsPage = {{ request()->routeIs('credit-reports.*') ? 'true' : 'false' }};
@@ -359,6 +370,24 @@
                     }
 
                     updateBadge('.js-cr-pending-badge', '.js-cr-pending-count', crCount);
+
+                    let newLeadsCount = 0;
+                    if (isAdmin) {
+                        try {
+                            const nlResponse = await fetch(newLeadsCountEndpoint, {
+                                method: 'GET',
+                                headers: { 'Accept': 'application/json' },
+                                credentials: 'same-origin',
+                            });
+                            if (nlResponse.ok) {
+                                const nlData = await nlResponse.json();
+                                newLeadsCount = Number(nlData?.count ?? 0) || 0;
+                            }
+                        } catch (e) {
+                            // Silent fail
+                        }
+                    }
+                    updateBadge('.js-new-leads-badge', '.js-new-leads-count', newLeadsCount);
 
                     const shouldBugByPending = crCount > 0 && !isCrReportsPage;
                     const shouldPlaySound = forceCrSoundTest || (isAdmin && crSoundEnabled && shouldBugByPending);

@@ -6,7 +6,7 @@
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
     <div>
         <h1 class="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">New Leads</h1>
-        <p class="mt-1 text-sm text-slate-600">All leads currently in New status.</p>
+        <p class="mt-1 text-sm text-slate-600">Leads with status New or not assigned to any user.</p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
         <a href="{{ route('leads.import.sample') }}"

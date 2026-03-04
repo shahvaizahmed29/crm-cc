@@ -26,6 +26,7 @@ class SettingController extends Controller
         $holdingStatusSlugs = Setting::getJsonArray('holding_status_slugs', self::DEFAULT_HOLDING_SLUGS);
         $crSoundNotificationsEnabled = Setting::get('cr_sound_notifications_enabled', '1') === '1';
         $callbackReminderMinutes = (int) (Setting::get('callback_reminder_minutes', '15') ?? '15');
+        $newLeadsNotificationThreshold = Setting::get('new_leads_notification_threshold', '');
         $ipWhitelist = Setting::getIpWhitelistCached();
         $statuses = Status::orderBy('name')->get(['id', 'name', 'slug']);
 
@@ -34,6 +35,7 @@ class SettingController extends Controller
             'holdingStatusSlugs' => $holdingStatusSlugs,
             'crSoundNotificationsEnabled' => $crSoundNotificationsEnabled,
             'callbackReminderMinutes' => $callbackReminderMinutes,
+            'newLeadsNotificationThreshold' => $newLeadsNotificationThreshold,
             'ipWhitelist' => $ipWhitelist,
             'statuses' => $statuses,
         ]);
@@ -47,6 +49,7 @@ class SettingController extends Controller
             'holding_status_slugs.*' => ['string', 'exists:statuses,slug'],
             'cr_sound_notifications_enabled' => ['required', 'boolean'],
             'callback_reminder_minutes' => ['required', 'integer', 'min:1', 'max:1440'],
+            'new_leads_notification_threshold' => ['nullable', 'integer', 'min:0', 'max:10000'],
             'ip_whitelist' => ['nullable', 'string'],
         ]);
 
@@ -56,6 +59,10 @@ class SettingController extends Controller
         Setting::putJsonArray('holding_status_slugs', $slugs);
         Setting::put('cr_sound_notifications_enabled', $validated['cr_sound_notifications_enabled'] ? '1' : '0');
         Setting::put('callback_reminder_minutes', (string) $validated['callback_reminder_minutes']);
+        $threshold = array_key_exists('new_leads_notification_threshold', $validated) && $validated['new_leads_notification_threshold'] !== null && $validated['new_leads_notification_threshold'] !== ''
+            ? (string) $validated['new_leads_notification_threshold']
+            : '';
+        Setting::put('new_leads_notification_threshold', $threshold);
 
         $ipRaw = $validated['ip_whitelist'] ?? '';
         $ipList = array_values(array_unique(array_filter(
