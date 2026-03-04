@@ -79,15 +79,19 @@
 
                             @if(isset($callbackStatusId) && $callbackStatusId !== null)
                             <div x-show="selectedStatusId === callbackStatusId" x-cloak class="mt-3 space-y-3 rounded-lg border border-sky-200 bg-sky-50/50 p-3">
-                                <p class="text-sm font-medium text-slate-700">Callback date & time</p>
-                                <p class="text-xs text-slate-500">Set when you want to be reminded to call back. You’ll get a notification before this time. Date and time are in your local timezone.</p>
+                                <p class="text-sm font-medium text-slate-700">Callback date & time <span class="text-red-500">*</span></p>
+                                <p class="text-xs text-slate-500">Set when you want to be reminded to call back. You’ll get a notification before this time. Date and time are in your local timezone. Required when status is Callback.</p>
                                 <input type="hidden" name="callback_at_utc" id="callback_at_utc" value="">
                                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                    <x-form-field label="Callback date" for="callback_date">
-                                        <x-input name="callback_date" id="callback_date" type="date" :value="old('callback_date', $callbackDate ?? null)" :min="now()->format('Y-m-d')" />
+                                    <x-form-field label="Callback date" for="callback_date" :required="true">
+                                        <input type="date" name="callback_date" id="callback_date" value="{{ old('callback_date', $callbackDate ?? '') }}" min="{{ now()->format('Y-m-d') }}"
+                                            x-bind:required="selectedStatusId === callbackStatusId"
+                                            class="mt-0.5 block w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500">
                                     </x-form-field>
-                                    <x-form-field label="Callback time" for="callback_time">
-                                        <x-input name="callback_time" id="callback_time" type="time" :value="old('callback_time', $callbackTime ?? null)" />
+                                    <x-form-field label="Callback time" for="callback_time" :required="true">
+                                        <input type="time" name="callback_time" id="callback_time" value="{{ old('callback_time', $callbackTime ?? '') }}"
+                                            x-bind:required="selectedStatusId === callbackStatusId"
+                                            class="mt-0.5 block w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500">
                                     </x-form-field>
                                 </div>
                             </div>

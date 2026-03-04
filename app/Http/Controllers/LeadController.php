@@ -707,7 +707,9 @@ class LeadController extends Controller
         }
 
         $statuses = Status::orderBy('name')->get();
-        return view('leads.create', compact('statuses'));
+        $callbackStatusId = $this->statusIdsBySlug()['callback'] ?? null;
+
+        return view('leads.create', compact('statuses', 'callbackStatusId'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -717,6 +719,37 @@ class LeadController extends Controller
         }
 
         $validated = $this->validateLeadPayload($request);
+
+        $callbackStatusId = $this->statusIdsBySlug()['callback'] ?? null;
+        if ($callbackStatusId !== null && (int) $validated['status_id'] === $callbackStatusId) {
+            $callbackAtUtc = $validated['callback_at_utc'] ?? null;
+            $date = $validated['callback_date'] ?? null;
+            $time = $validated['callback_time'] ?? null;
+            $hasUtc = $callbackAtUtc !== null && $callbackAtUtc !== '';
+            $hasDateTime = trim((string) $date) !== '' && trim((string) $time) !== '';
+            if (! $hasUtc && ! $hasDateTime) {
+                return back()->withErrors(['callback_date' => 'Callback date and time are required when status is Callback.'])->withInput();
+            }
+            if ($hasUtc) {
+                try {
+                    $callbackAt = \Carbon\Carbon::parse($callbackAtUtc, 'UTC');
+                    if ($callbackAt->isPast()) {
+                        return back()->withErrors(['callback_date' => 'Callback date and time must be in the future.'])->withInput();
+                    }
+                } catch (\Throwable $e) {
+                    return back()->withErrors(['callback_at_utc' => 'Invalid callback date/time.'])->withInput();
+                }
+            } elseif ($hasDateTime) {
+                try {
+                    $callbackAt = \Carbon\Carbon::parse($date . ' ' . $time, config('app.timezone'));
+                    if ($callbackAt->isPast()) {
+                        return back()->withErrors(['callback_date' => 'Callback date and time must be in the future.'])->withInput();
+                    }
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+            }
+        }
 
         $lead = Lead::create([
             'first_name' => $validated['first_name'],
@@ -738,6 +771,16 @@ class LeadController extends Controller
         }
         foreach ($this->normalizeLines($validated['emails'] ?? []) as $email) {
             $lead->emails()->create(['email' => $email]);
+        }
+
+        if ($callbackStatusId !== null && (int) $validated['status_id'] === $callbackStatusId) {
+            $this->createCallbackReminderIfRequested(
+                $lead,
+                (int) $validated['status_id'],
+                $validated['callback_date'] ?? null,
+                $validated['callback_time'] ?? null,
+                $validated['callback_at_utc'] ?? null
+            );
         }
 
         $this->notifyAdminsOfNewLeadIfApplicable($lead);
@@ -960,7 +1003,14 @@ class LeadController extends Controller
         $callbackStatusId = $this->statusIdsBySlug()['callback'] ?? null;
         if ($callbackStatusId !== null && (int) $validated['status_id'] === $callbackStatusId) {
             $callbackAtUtc = $validated['callback_at_utc'] ?? null;
-            if ($callbackAtUtc !== null && $callbackAtUtc !== '') {
+            $date = $validated['callback_date'] ?? null;
+            $time = $validated['callback_time'] ?? null;
+            $hasUtc = $callbackAtUtc !== null && $callbackAtUtc !== '';
+            $hasDateTime = trim((string) $date) !== '' && trim((string) $time) !== '';
+            if (! $hasUtc && ! $hasDateTime) {
+                return back()->withErrors(['callback_date' => 'Callback date and time are required when status is Callback.'])->withInput();
+            }
+            if ($hasUtc) {
                 try {
                     $callbackAt = \Carbon\Carbon::parse($callbackAtUtc, 'UTC');
                     if ($callbackAt->isPast()) {
@@ -970,8 +1020,6 @@ class LeadController extends Controller
                     return back()->withErrors(['callback_at_utc' => 'Invalid callback date/time.'])->withInput();
                 }
             } else {
-                $date = $validated['callback_date'] ?? null;
-                $time = $validated['callback_time'] ?? null;
                 if ($date !== null && $date !== '' && $time !== null && $time !== '') {
                     try {
                         $callbackAt = \Carbon\Carbon::parse($date . ' ' . $time, config('app.timezone'));

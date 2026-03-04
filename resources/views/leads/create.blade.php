@@ -6,7 +6,7 @@
 <x-page-header title="Add Lead Information" :back-url="route('leads.index')" back-text="Back to list" />
 <p class="mt-1 text-sm text-slate-600">Enter all possible information.</p>
 
-<form action="{{ route('leads.store') }}" method="POST" class="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
+<form id="lead-create-form" action="{{ route('leads.store') }}" method="POST" class="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2" @if(isset($callbackStatusId) && $callbackStatusId !== null) data-callback-status-id="{{ $callbackStatusId }}" @endif>
     @csrf
     <div class="space-y-3">
         <x-form-field label="First Name" for="first_name" :required="true">
@@ -47,9 +47,32 @@
             >
             <label for="is_dnc" class="text-sm font-medium text-slate-700">Mark as DNC (Do Not Call)</label>
         </div>
+        @if(isset($callbackStatusId) && $callbackStatusId !== null)
+        <div x-data="{ selectedStatusId: '{{ old('status_id', '') }}', callbackStatusId: '{{ $callbackStatusId }}' }">
+        @endif
         <x-form-field label="Status" for="status_id" :required="true">
-            <x-select name="status_id" id="status_id" :options="$statuses->pluck('name', 'id')" :selected="old('status_id')" required />
+            <x-select name="status_id" id="status_id" :options="$statuses->pluck('name', 'id')" :selected="old('status_id')" required :change-handler="isset($callbackStatusId) ? 'selectedStatusId = $event.target.value' : null" />
         </x-form-field>
+        @if(isset($callbackStatusId) && $callbackStatusId !== null)
+        <div x-show="selectedStatusId === callbackStatusId" x-cloak class="mt-3 space-y-3 rounded-lg border border-sky-200 bg-sky-50/50 p-3">
+            <p class="text-sm font-medium text-slate-700">Callback date & time <span class="text-red-500">*</span></p>
+            <p class="text-xs text-slate-500">Set when you want to be reminded to call back. Required when status is Callback.</p>
+            <input type="hidden" name="callback_at_utc" id="callback_at_utc" value="">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <x-form-field label="Callback date" for="callback_date" :required="true">
+                    <input type="date" name="callback_date" id="callback_date" value="{{ old('callback_date', '') }}" min="{{ now()->format('Y-m-d') }}"
+                        x-bind:required="selectedStatusId === callbackStatusId"
+                        class="mt-0.5 block w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500">
+                </x-form-field>
+                <x-form-field label="Callback time" for="callback_time" :required="true">
+                    <input type="time" name="callback_time" id="callback_time" value="{{ old('callback_time', '') }}"
+                        x-bind:required="selectedStatusId === callbackStatusId"
+                        class="mt-0.5 block w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500">
+                </x-form-field>
+            </div>
+        </div>
+        </div>
+        @endif
         <div>
             <button type="submit" class="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-sky-500">Add Lead</button>
         </div>
@@ -106,4 +129,28 @@
         </div>
     </div>
 </form>
+
+@if(isset($callbackStatusId) && $callbackStatusId !== null)
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('lead-create-form');
+    if (!form) return;
+    var callbackDateEl = document.getElementById('callback_date');
+    var callbackTimeEl = document.getElementById('callback_time');
+    form.addEventListener('submit', function () {
+        var callbackStatusId = form.getAttribute('data-callback-status-id');
+        var statusIdEl = document.getElementById('status_id');
+        if (!callbackStatusId || !statusIdEl || statusIdEl.value !== callbackStatusId) return;
+        if (!callbackDateEl || !callbackTimeEl || !callbackDateEl.value || !callbackTimeEl.value) return;
+        var parts = callbackDateEl.value.split('-').map(Number);
+        var timeParts = callbackTimeEl.value.split(':').map(Number);
+        var localDate = new Date(parts[0], parts[1] - 1, parts[2], timeParts[0], timeParts[1] || 0, 0, 0);
+        var utcInput = document.getElementById('callback_at_utc');
+        if (utcInput) utcInput.value = localDate.toISOString();
+    });
+});
+</script>
+@endpush
+@endif
 @endsection
