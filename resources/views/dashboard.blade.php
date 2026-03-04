@@ -8,7 +8,14 @@
     <p class="mt-1 text-sm text-slate-600">Overview of your leads and activity.</p>
 </div>
 
-<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 {{ isset($newLeadsCount) ? 'xl:grid-cols-5' : '' }}">
+    @if(isset($newLeadsCount))
+    <a href="{{ route('leads.new.index') }}" class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 transition hover:ring-amber-400 hover:shadow-md">
+        <p class="text-sm font-medium text-slate-500">New Leads</p>
+        <p class="mt-1 text-2xl font-semibold text-slate-900">{{ number_format($newLeadsCount) }}</p>
+        <p class="mt-1 text-xs text-sky-600 font-medium">View all &rarr;</p>
+    </a>
+    @endif
     <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <p class="text-sm font-medium text-slate-500">Monthly Leads</p>
         <p class="mt-1 text-2xl font-semibold text-slate-900">{{ number_format($stats['monthly_leads']) }}</p>

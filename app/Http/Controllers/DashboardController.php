@@ -39,9 +39,19 @@ class DashboardController extends Controller
             $stats['last_month'] = Lead::where('assigned_to', $user->id)->whereMonth('created_at', now()->subMonth()->month)->whereYear('created_at', now()->subMonth()->year)->count();
         }
 
+        $newLeadsCount = null;
+        if ($user->isAdmin()) {
+            $newLeadsCount = Lead::query()
+                ->where(function ($q) use ($newStatusId): void {
+                    $q->where('status_id', $newStatusId)->orWhereNull('assigned_to');
+                })
+                ->count();
+        }
+
         return view('dashboard', [
             'recentLeads' => $recentLeads,
             'stats' => $stats,
+            'newLeadsCount' => $newLeadsCount,
         ]);
     }
 }
