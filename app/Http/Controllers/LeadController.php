@@ -1810,34 +1810,67 @@ class LeadController extends Controller
         return max(1, $configured);
     }
 
+    /**
+     * Next lead for the current agent using round-robin: leads are ordered by id (FIFO)
+     * and assigned to agents in rotation. Lead at index i goes to agent at (i % numAgents).
+     */
     private function nextAvailableLead(Request $request): ?Lead
     {
         $queueStatusIds = $this->queueAssignableStatusIds();
         $skipped = $request->session()->get('agent_skipped_lead_ids', []);
 
-        $query = Lead::with(['status', 'phones'])
+        $baseQuery = Lead::query()
             ->whereNull('assigned_to')
             ->whereIn('status_id', $queueStatusIds)
             ->where('is_dnc', false)
             ->orderBy('id');
 
+        $leadIdsQuery = (clone $baseQuery)->select('id');
         if (! empty($skipped)) {
-            $query->whereNotIn('id', $skipped);
+            $leadIdsQuery->whereNotIn('id', $skipped);
         }
+        $leadIds = $leadIdsQuery->pluck('id')->values()->all();
 
-        $lead = $query->first();
-
-        if (! $lead && ! empty($skipped)) {
+        if ($leadIds === [] && $skipped !== []) {
             $request->session()->forget('agent_skipped_lead_ids');
-            $lead = Lead::with(['status', 'phones'])
-                ->whereNull('assigned_to')
-                ->whereIn('status_id', $queueStatusIds)
-                ->where('is_dnc', false)
-                ->orderBy('id')
-                ->first();
+            $leadIds = (clone $baseQuery)->select('id')->pluck('id')->values()->all();
         }
 
-        return $lead;
+        if ($leadIds === []) {
+            return null;
+        }
+
+        $agentIds = $this->queueAgentIds();
+        if ($agentIds === []) {
+            return Lead::with(['status', 'phones'])->find($leadIds[0]);
+        }
+
+        $currentAgentId = auth()->id();
+        $myIndex = array_search((int) $currentAgentId, $agentIds, true);
+        if ($myIndex === false) {
+            return Lead::with(['status', 'phones'])->find($leadIds[0]);
+        }
+
+        $numAgents = count($agentIds);
+        $positionForMe = $myIndex;
+        if ($positionForMe >= count($leadIds)) {
+            return null;
+        }
+
+        $leadId = $leadIds[$positionForMe];
+
+        return Lead::with(['status', 'phones'])->find($leadId);
+    }
+
+    /** @return array<int> Ordered list of user IDs with agent role (stable order for round-robin). */
+    private function queueAgentIds(): array
+    {
+        return User::query()
+            ->whereHas('roles', fn ($q) => $q->where('slug', 'agent'))
+            ->orderBy('id')
+            ->pluck('id')
+            ->values()
+            ->all();
     }
 
     /** @return array<int> */
