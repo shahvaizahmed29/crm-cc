@@ -275,13 +275,8 @@ class LeadController extends Controller
             return redirect()->route('agent.queue')->with('error', 'That lead is no longer available.');
         }
 
-        $skipped = $request->session()->get('agent_skipped_lead_ids', []);
-        $skipped[] = $request->integer('lead_id');
-        $skipped = array_values(array_unique($skipped));
-        if (count($skipped) > 200) {
-            $skipped = array_slice($skipped, -200);
-        }
-        $request->session()->put('agent_skipped_lead_ids', $skipped);
+        $offset = (int) $request->session()->get('agent_skip_offset', 0);
+        $request->session()->put('agent_skip_offset', $offset + 1);
 
         return redirect()->route('agent.queue');
     }
@@ -335,6 +330,7 @@ class LeadController extends Controller
         }
 
         $request->session()->forget('agent_skipped_lead_ids');
+        $request->session()->forget('agent_skip_offset');
 
         return redirect()->route('leads.edit', $assignedLead)->with('success', 'Lead assigned to you.');
     }
@@ -1811,32 +1807,25 @@ class LeadController extends Controller
     }
 
     /**
-     * Next lead for the current agent using round-robin: leads are ordered by id (FIFO)
-     * and assigned to agents in rotation. Lead at index i goes to agent at (i % numAgents).
+     * Next lead for the current agent using round-robin: one global list (same for all agents),
+     * lead at index i is assigned to agent (i % numAgents). Skip advances this agent's slot
+     * by numAgents so the same lead is never shown to two agents.
      */
     private function nextAvailableLead(Request $request): ?Lead
     {
         $queueStatusIds = $this->queueAssignableStatusIds();
-        $skipped = $request->session()->get('agent_skipped_lead_ids', []);
 
-        $baseQuery = Lead::query()
+        $leadIds = Lead::query()
             ->whereNull('assigned_to')
             ->whereIn('status_id', $queueStatusIds)
             ->where('is_dnc', false)
-            ->orderBy('id');
-
-        $leadIdsQuery = (clone $baseQuery)->select('id');
-        if (! empty($skipped)) {
-            $leadIdsQuery->whereNotIn('id', $skipped);
-        }
-        $leadIds = $leadIdsQuery->pluck('id')->values()->all();
-
-        if ($leadIds === [] && $skipped !== []) {
-            $request->session()->forget('agent_skipped_lead_ids');
-            $leadIds = (clone $baseQuery)->select('id')->pluck('id')->values()->all();
-        }
+            ->orderBy('id')
+            ->pluck('id')
+            ->values()
+            ->all();
 
         if ($leadIds === []) {
+            $request->session()->forget('agent_skip_offset');
             return null;
         }
 
@@ -1852,8 +1841,11 @@ class LeadController extends Controller
         }
 
         $numAgents = count($agentIds);
-        $positionForMe = $myIndex;
+        $skipOffset = (int) $request->session()->get('agent_skip_offset', 0);
+        $positionForMe = $myIndex + ($skipOffset * $numAgents);
+
         if ($positionForMe >= count($leadIds)) {
+            $request->session()->forget('agent_skip_offset');
             return null;
         }
 
