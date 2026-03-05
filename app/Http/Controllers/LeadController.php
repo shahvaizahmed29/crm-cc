@@ -1055,19 +1055,13 @@ class LeadController extends Controller
             $lead->emails()->create(['email' => $email]);
         }
 
-        $callbackCreated = $this->createCallbackReminderIfRequested(
+        $this->createCallbackReminderIfRequested(
             $lead,
             (int) $validated['status_id'],
             $validated['callback_date'] ?? null,
             $validated['callback_time'] ?? null,
             $validated['callback_at_utc'] ?? null
         );
-
-        if (! $callbackCreated) {
-            return redirect()->route('leads.edit', $lead)
-                ->with('error', 'This lead already has a pending callback. You can set a new callback only after the current callback time has passed.')
-                ->withInput();
-        }
 
         return redirect()->route('leads.edit', $lead)->with('success', 'Lead updated successfully.');
     }

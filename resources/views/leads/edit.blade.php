@@ -17,13 +17,12 @@
     </x-slot:actions>
 </x-page-header>
 
-<form id="lead-edit-form" action="{{ route('leads.update', $lead) }}" method="POST" class="mt-4" @if(isset($callbackStatusId) && $callbackStatusId !== null) data-callback-status-id="{{ $callbackStatusId }}" data-callback-at-utc="{{ $callbackAtUtc ?? '' }}" @endif>
-    @csrf
-    @method('PUT')
-
-    <div class="grid grid-cols-1 gap-6 xl:grid-cols-4">
+<div class="grid grid-cols-1 gap-6 xl:grid-cols-4 mt-4">
         <!-- Left Column - Lead Information -->
          <div class="xl:col-span-3">
+            <form id="lead-edit-form" action="{{ route('leads.update', $lead) }}" method="POST" @if(isset($callbackStatusId) && $callbackStatusId !== null) data-callback-status-id="{{ $callbackStatusId }}" data-callback-at-utc="{{ $callbackAtUtc ?? '' }}" @endif>
+                @csrf
+                @method('PUT')
             <div class="grid grid-cols-1 gap-6 xl:grid-cols-2 rounded-lg bg-white p-4 shadow ring-1 ring-slate-200 ">
                 <div class="space-y-3 xl:col-span-1">
                         <h2 class="mb-4 text-base font-semibold text-slate-900">Lead Information</h2>
@@ -162,6 +161,7 @@
                     </div>
                 </div>
             </div>
+            </form>
          </div>
          <!-- Right Column - Sticky Cards -->
          <div class="xl:col-span-1">
@@ -357,8 +357,7 @@
              </div>
          </div>        
 
-    </div>
-</form>
+</div>
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
