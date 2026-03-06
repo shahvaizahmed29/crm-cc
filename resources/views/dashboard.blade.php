@@ -34,6 +34,31 @@
     </div>
 </div>
 
+@if(isset($leadsCountByStatus) && count($leadsCountByStatus) > 0)
+<div class="mt-8">
+    <h2 class="text-lg font-semibold text-slate-900">Leads by status (submitted by you)</h2>
+    <p class="mt-1 text-sm text-slate-600">Count of leads you have in each status. No link to leads—counts only.</p>
+    <div class="mt-4 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+        <table class="min-w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Status</th>
+                    <th scope="col" class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600">Count</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 bg-white">
+                @foreach($leadsCountByStatus as $row)
+                <tr>
+                    <td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-900">{{ $row['name'] }}</td>
+                    <td class="whitespace-nowrap px-4 py-3 text-right text-sm text-slate-600">{{ number_format($row['count']) }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+</div>
+@endif
+
 <div class="mt-8">
     <h2 class="text-lg font-semibold text-slate-900">Recent Activities</h2>
     <div class="mt-4 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">

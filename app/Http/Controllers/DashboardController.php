@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Lead;
+use App\Models\Setting;
+use App\Models\Status;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -11,10 +13,11 @@ class DashboardController extends Controller
     {
         $user = auth()->user();
         $leadsQuery = Lead::with(['status', 'assignedTo']);
-        $newStatusId = \App\Models\Status::where('slug', 'new')->value('id');
+        $newStatusId = Status::where('slug', 'new')->value('id');
 
         if ($user->isAgent()) {
             $leadsQuery->where('assigned_to', $user->id);
+            $leadsQuery->whereIn('status_id', $this->holdingStatusIds());
         } else {
             // Admin recent activities should show worked leads only.
             $leadsQuery->whereNotNull('assigned_to');
@@ -48,10 +51,47 @@ class DashboardController extends Controller
                 ->count();
         }
 
+        $leadsCountByStatus = null;
+        if ($user->isAgent()) {
+            $countsByStatusId = Lead::query()
+                ->where('assigned_to', $user->id)
+                ->selectRaw('status_id, count(*) as lead_count')
+                ->groupBy('status_id')
+                ->pluck('lead_count', 'status_id')
+                ->all();
+
+            $leadsCountByStatus = Status::query()
+                ->orderBy('name')
+                ->get()
+                ->map(fn (Status $status) => [
+                    'name' => $status->name,
+                    'slug' => $status->slug,
+                    'count' => (int) ($countsByStatusId[$status->id] ?? 0),
+                ])
+                ->values()
+                ->all();
+        }
+
         return view('dashboard', [
             'recentLeads' => $recentLeads,
             'stats' => $stats,
             'newLeadsCount' => $newLeadsCount,
+            'leadsCountByStatus' => $leadsCountByStatus,
         ]);
+    }
+
+    /** @return array<int> */
+    private function holdingStatusIds(): array
+    {
+        $slugs = Setting::getJsonArray('holding_status_slugs', []);
+        if ($slugs === []) {
+            return [];
+        }
+
+        return Status::query()
+            ->whereIn('slug', $slugs)
+            ->pluck('id')
+            ->values()
+            ->all();
     }
 }

@@ -68,6 +68,7 @@ class LeadController extends Controller
             $query->where('assigned_to', $user->id);
             $query->where('status_id', '!=', $newStatusId);
             $query->where('is_dnc', false);
+            $query->whereIn('status_id', $this->holdingStatusIds());
             $statusesQuery->where('slug', '!=', self::ACTIVE_STATUS_SLUG);
             $holdingCount = $this->agentHoldingCount();
         }
@@ -1085,6 +1086,10 @@ class LeadController extends Controller
 
             if ($lead->assigned_to !== auth()->id()) {
                 abort(403, 'You can only view leads assigned to you.');
+            }
+
+            if (! in_array((int) $lead->status_id, $this->holdingStatusIds(), true)) {
+                abort(403, 'You can only access leads in holding statuses.');
             }
         }
     }
