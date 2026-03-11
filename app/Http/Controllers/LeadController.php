@@ -56,7 +56,19 @@ class LeadController extends Controller
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date'],
             'keyword' => ['nullable', 'string', 'max:100'],
+            'assigned_to' => ['nullable', 'string', 'max:20'],
+            'sort' => ['nullable', 'string', 'in:updated_at,approx_debt,fees'],
+            'order' => ['nullable', 'string', 'in:asc,desc'],
         ]);
+
+        $sort = $request->query('sort', 'updated_at');
+        $order = $request->query('order', 'desc');
+        if (! in_array($sort, ['updated_at', 'approx_debt', 'fees'], true)) {
+            $sort = 'updated_at';
+        }
+        if (! in_array($order, ['asc', 'desc'], true)) {
+            $order = 'desc';
+        }
 
         $query = Lead::with(['status', 'assignedTo', 'phones', 'emails']);
         $statusesQuery = Status::orderBy('name');
@@ -75,6 +87,17 @@ class LeadController extends Controller
 
         if ($isAdmin && $request->filled('status')) {
             $query->where('status_id', $request->status);
+        }
+
+        if ($isAdmin && $request->has('assigned_to')) {
+            if ($request->assigned_to === '') {
+                $query->whereNull('assigned_to');
+            } else {
+                $assigneeId = (int) $request->assigned_to;
+                if ($assigneeId > 0 && User::where('id', $assigneeId)->exists()) {
+                    $query->where('assigned_to', $assigneeId);
+                }
+            }
         }
 
         if ($isAgent && $request->filled('status')) {
@@ -124,7 +147,7 @@ class LeadController extends Controller
             $statusesQuery->where('slug', '!=', self::ACTIVE_STATUS_SLUG);
         }
 
-        $query->latest('updated_at');
+        $query->orderBy($sort, $order);
         $leads = $isAgent
             ? $query->limit(50)->get()
             : $query->paginate(20)->withQueryString();
@@ -150,7 +173,11 @@ class LeadController extends Controller
             $defaultColumns[] = 'assigned_to';
         }
 
-        return view('leads.index', compact('leads', 'statuses', 'holdingCount', 'historyLimit', 'availableColumns', 'defaultColumns'));
+        $assignableUsers = $isAdmin
+            ? User::whereHas('roles', fn ($q) => $q->where('slug', 'agent'))->orderBy('name')->get()
+            : collect();
+
+        return view('leads.index', compact('leads', 'statuses', 'holdingCount', 'historyLimit', 'availableColumns', 'defaultColumns', 'assignableUsers', 'sort', 'order'));
     }
 
     public function adminNewLeads(Request $request): View
@@ -159,7 +186,18 @@ class LeadController extends Controller
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date'],
             'keyword' => ['nullable', 'string', 'max:100'],
+            'sort' => ['nullable', 'string', 'in:updated_at,approx_debt,fees'],
+            'order' => ['nullable', 'string', 'in:asc,desc'],
         ]);
+
+        $sort = $request->query('sort', 'updated_at');
+        $order = $request->query('order', 'desc');
+        if (! in_array($sort, ['updated_at', 'approx_debt', 'fees'], true)) {
+            $sort = 'updated_at';
+        }
+        if (! in_array($order, ['asc', 'desc'], true)) {
+            $order = 'desc';
+        }
 
         $query = $this->newLeadsQuery()->with(['assignedTo', 'status', 'phones', 'emails']);
 
@@ -196,9 +234,9 @@ class LeadController extends Controller
             });
         }
 
-        $leads = $query->latest('updated_at')->paginate(20)->withQueryString();
+        $leads = $query->orderBy($sort, $order)->paginate(20)->withQueryString();
 
-        return view('leads.new', compact('leads'));
+        return view('leads.new', compact('leads', 'sort', 'order'));
     }
 
     public function newLeadsCount(): JsonResponse
@@ -704,6 +742,7 @@ class LeadController extends Controller
             'keyword' => ['nullable', 'string', 'max:100'],
             'status' => ['nullable', 'integer', 'exists:statuses,id'],
             'dnc' => ['nullable', 'in:0,1'],
+            'assigned_to' => ['nullable', 'string', 'max:20'],
         ]);
 
         $query = Lead::with(['status', 'assignedTo', 'phones', 'emails', 'cards'])->latest('updated_at');
@@ -1219,6 +1258,18 @@ class LeadController extends Controller
 
         if ($request->has('dnc') && in_array((string) $request->query('dnc'), ['0', '1'], true)) {
             $query->where('is_dnc', $request->boolean('dnc'));
+        }
+
+        if ($request->has('assigned_to')) {
+            $val = $request->query('assigned_to');
+            if ($val === '' || $val === null) {
+                $query->whereNull('assigned_to');
+            } elseif ($val !== 'all') {
+                $assigneeId = (int) $val;
+                if ($assigneeId > 0 && User::where('id', $assigneeId)->exists()) {
+                    $query->where('assigned_to', $assigneeId);
+                }
+            }
         }
 
         if ($request->filled('date_from')) {

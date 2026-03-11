@@ -6,6 +6,12 @@
 @php
     $isAdmin = auth()->user()->isAdmin();
     $isAgent = auth()->user()->isAgent();
+    $sort = $sort ?? request('sort', 'updated_at');
+    $order = $order ?? request('order', 'desc');
+    $sortUrl = function ($col) use ($sort, $order) {
+        $next = ($sort === $col) ? ($order === 'desc' ? 'asc' : 'desc') : 'asc';
+        return route('leads.index', array_merge(request()->query(), ['sort' => $col, 'order' => $next]));
+    };
 @endphp
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
     <div>
@@ -85,9 +91,21 @@
                     <option value="0" {{ request('dnc') === '0' ? 'selected' : '' }}>Non-DNC</option>
                 </select>
             </div>
+            <div>
+                <label for="assigned_to" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">Assigned To</label>
+                <select name="assigned_to" id="assigned_to" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
+                    <option value="all" {{ (request('assigned_to') === null || request('assigned_to') === 'all') ? 'selected' : '' }}>All</option>
+                    <option value="" {{ request('assigned_to') === '' ? 'selected' : '' }}>Unassigned</option>
+                    @foreach($assignableUsers ?? [] as $agent)
+                        <option value="{{ $agent->id }}" {{ request('assigned_to') == (string) $agent->id ? 'selected' : '' }}>{{ $agent->displayName() }}</option>
+                    @endforeach
+                </select>
+            </div>
         @endif
     </div>
 
+    <input type="hidden" name="sort" value="{{ request('sort', 'updated_at') }}">
+    <input type="hidden" name="order" value="{{ request('order', 'desc') }}">
     <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
         <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500">Apply Filters</button>
         <a href="{{ route('leads.index') }}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Reset</a>
@@ -175,9 +193,36 @@
                 <tr>
                     <th x-show="isVisible('name')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="name">Name</th>
                     <th x-show="isVisible('status')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="status">Status</th>
-                    <th x-show="isVisible('total_debt')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="total_debt">Total Debt</th>
-                    <th x-show="isVisible('fees')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="fees">Fees</th>
-                    <th x-show="isVisible('last_update')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="last_update">Last Update</th>
+                    <th x-show="isVisible('total_debt')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="total_debt">
+                        <a href="{{ $sortUrl('approx_debt') }}" class="inline-flex items-center gap-0.5 group">
+                            Total Debt
+                            @if($sort === 'approx_debt')
+                                <span class="text-sky-600">{{ $order === 'desc' ? '↓' : '↑' }}</span>
+                            @else
+                                <span class="text-slate-300 group-hover:text-slate-500">↕</span>
+                            @endif
+                        </a>
+                    </th>
+                    <th x-show="isVisible('fees')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="fees">
+                        <a href="{{ $sortUrl('fees') }}" class="inline-flex items-center gap-0.5 group">
+                            Fees
+                            @if($sort === 'fees')
+                                <span class="text-sky-600">{{ $order === 'desc' ? '↓' : '↑' }}</span>
+                            @else
+                                <span class="text-slate-300 group-hover:text-slate-500">↕</span>
+                            @endif
+                        </a>
+                    </th>
+                    <th x-show="isVisible('last_update')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="last_update">
+                        <a href="{{ $sortUrl('updated_at') }}" class="inline-flex items-center gap-0.5 group">
+                            Last Update
+                            @if($sort === 'updated_at')
+                                <span class="text-sky-600">{{ $order === 'desc' ? '↓' : '↑' }}</span>
+                            @else
+                                <span class="text-slate-300 group-hover:text-slate-500">↕</span>
+                            @endif
+                        </a>
+                    </th>
                     <th x-show="isVisible('dnc')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="dnc">DNC</th>
                     <th x-show="isVisible('contacts')" scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600" data-column="contacts">Contacts</th>
                     @if($isAdmin)

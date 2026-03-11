@@ -3,6 +3,14 @@
 @section('title', 'New Leads')
 
 @section('content')
+@php
+    $sort = $sort ?? request('sort', 'updated_at');
+    $order = $order ?? request('order', 'desc');
+    $sortUrl = function ($col) use ($sort, $order) {
+        $next = ($sort === $col) ? ($order === 'desc' ? 'asc' : 'desc') : 'asc';
+        return route('leads.new.index', array_merge(request()->query(), ['sort' => $col, 'order' => $next]));
+    };
+@endphp
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
     <div>
         <h1 class="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">New Leads</h1>
@@ -69,6 +77,8 @@
         </div>
     </div>
 
+    <input type="hidden" name="sort" value="{{ request('sort', 'updated_at') }}">
+    <input type="hidden" name="order" value="{{ request('order', 'desc') }}">
     <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
         <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500">Apply Filters</button>
         <a href="{{ route('leads.new.index') }}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Reset</a>
@@ -87,11 +97,49 @@
                         class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">SSN /
                         Phone</th>
                     <th scope="col"
-                        class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Total
-                        Debt</th>
+                        class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                        <a href="{{ $sortUrl('approx_debt') }}" class="inline-flex items-center gap-0.5 group">
+                            Total Debt
+                            @if($sort === 'approx_debt')
+                                <span class="text-sky-600">{{ $order === 'desc' ? '↓' : '↑' }}</span>
+                            @else
+                                <span class="text-slate-300 group-hover:text-slate-500">↕</span>
+                            @endif
+                        </a>
+                    </th>
                     <th scope="col"
-                        class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Last
-                        Update</th>
+                        class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                        <a href="{{ $sortUrl('updated_at') }}" class="inline-flex items-center gap-0.5 group">
+                            Last Update
+                            @if($sort === 'updated_at')
+                                <span class="text-sky-600">{{ $order === 'desc' ? '↓' : '↑' }}</span>
+                            @else
+                                <span class="text-slate-300 group-hover:text-slate-500">↕</span>
+                            @endif
+                        </a>
+                    </th>
+                    <th scope="col"
+                        class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                        <a href="{{ $sortUrl('updated_at') }}" class="inline-flex items-center gap-0.5 group">
+                            Last Update
+                            @if($sort === 'updated_at')
+                                <span class="text-sky-600">{{ $order === 'desc' ? '↓' : '↑' }}</span>
+                            @else
+                                <span class="text-slate-300 group-hover:text-slate-500">↕</span>
+                            @endif
+                        </a>
+                    </th>
+                    <th scope="col"
+                        class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                        <a href="{{ $sortUrl('fees') }}" class="inline-flex items-center gap-0.5 group">
+                            Fees
+                            @if($sort === 'fees')
+                                <span class="text-sky-600">{{ $order === 'desc' ? '↓' : '↑' }}</span>
+                            @else
+                                <span class="text-slate-300 group-hover:text-slate-500">↕</span>
+                            @endif
+                        </a>
+                    </th>
                     <th scope="col"
                         class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">DNC</th>
                     <th scope="col"
@@ -118,6 +166,9 @@
                     </td>
                     <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
                         {{ format_in_app_tz($lead->updated_at, 'Y-m-d H:i') }}
+                    </td>
+                    <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
+                        @if($lead->fees) ${{ number_format($lead->fees, 2) }} @else — @endif
                     </td>
                     <td class="whitespace-nowrap px-4 py-3 text-sm">
                         @if($lead->is_dnc)
