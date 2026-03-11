@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CrmNotification;
 use App\Models\Lead;
 use App\Models\Setting;
 use App\Models\Status;
@@ -28,6 +29,15 @@ class DashboardController extends Controller
         }
 
         $recentLeads = $leadsQuery->latest('updated_at')->limit(10)->get();
+
+        $recentNotifications = null;
+        if ($user->isAdmin()) {
+            $recentNotifications = CrmNotification::query()
+                ->where('target_user_id', $user->id)
+                ->orderByDesc('notify_at')
+                ->limit(10)
+                ->get(['id', 'type', 'title', 'message', 'action_url', 'notify_at', 'read_at']);
+        }
 
         $now = Carbon::now(app_timezone());
         $todayStart = $now->copy()->startOfDay()->utc();
@@ -86,6 +96,7 @@ class DashboardController extends Controller
 
         return view('dashboard', [
             'recentLeads' => $recentLeads,
+            'recentNotifications' => $recentNotifications,
             'stats' => $stats,
             'newLeadsCount' => $newLeadsCount,
             'leadsCountByStatus' => $leadsCountByStatus,
