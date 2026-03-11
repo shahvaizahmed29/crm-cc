@@ -87,8 +87,8 @@
         </div>
 
         {{-- Right column: pie chart --}}
-        <div class="min-w-0 overflow-hidden">
-            <div class="relative mx-auto h-[280px] w-full max-w-[320px] overflow-hidden">
+        <div class="min-w-0">
+            <div class="relative mx-auto w-full max-w-[340px]" style="min-height: 380px;">
                 {!! $statusChart->renderHtml() !!}
             </div>
         </div>
