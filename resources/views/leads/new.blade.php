@@ -35,8 +35,8 @@
         <p class="text-xs text-slate-500">Use date range and optional filters to narrow results.</p>
     </div>
 
-    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <div class="xl:col-span-2">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
             <label for="keyword" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">Keyword</label>
             <input
                 type="text"
@@ -46,7 +46,14 @@
                 placeholder="First name, last name, or phone"
                 class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
         </div>
-
+        <div>
+            <label for="dnc" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">DNC</label>
+            <select name="dnc" id="dnc" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
+                <option value="">All</option>
+                <option value="1" {{ request('dnc') === '1' ? 'selected' : '' }}>DNC only</option>
+                <option value="0" {{ request('dnc') === '0' ? 'selected' : '' }}>Non-DNC</option>
+            </select>
+        </div>
         <div>
             <label for="date_from" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">From Date</label>
             <input
@@ -56,7 +63,6 @@
                 value="{{ request('date_from') }}"
                 class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
         </div>
-
         <div>
             <label for="date_to" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">To Date</label>
             <input
@@ -66,20 +72,11 @@
                 value="{{ request('date_to') }}"
                 class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
         </div>
-
-        <div>
-            <label for="dnc" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">DNC</label>
-            <select name="dnc" id="dnc" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
-                <option value="">All</option>
-                <option value="1" {{ request('dnc') === '1' ? 'selected' : '' }}>DNC only</option>
-                <option value="0" {{ request('dnc') === '0' ? 'selected' : '' }}>Non-DNC</option>
-            </select>
-        </div>
     </div>
 
     <input type="hidden" name="sort" value="{{ request('sort', 'updated_at') }}">
     <input type="hidden" name="order" value="{{ request('order', 'desc') }}">
-    <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+    <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
         <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500">Apply Filters</button>
         <a href="{{ route('leads.new.index') }}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Reset</a>
     </div>
