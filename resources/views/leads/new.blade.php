@@ -120,17 +120,6 @@
                     </th>
                     <th scope="col"
                         class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
-                        <a href="{{ $sortUrl('updated_at') }}" class="inline-flex items-center gap-0.5 group">
-                            Last Update
-                            @if($sort === 'updated_at')
-                                <span class="text-sky-600">{{ $order === 'desc' ? '↓' : '↑' }}</span>
-                            @else
-                                <span class="text-slate-300 group-hover:text-slate-500">↕</span>
-                            @endif
-                        </a>
-                    </th>
-                    <th scope="col"
-                        class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
                         <a href="{{ $sortUrl('fees') }}" class="inline-flex items-center gap-0.5 group">
                             Fees
                             @if($sort === 'fees')
@@ -265,7 +254,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" class="px-4 py-8 text-center text-sm text-slate-500">No new leads found.</td>
+                    <td colspan="9" class="px-4 py-8 text-center text-sm text-slate-500">No new leads found.</td>
                 </tr>
                 @endforelse
             </tbody>
