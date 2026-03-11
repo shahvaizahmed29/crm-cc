@@ -99,7 +99,7 @@ class DashboardController extends Controller
                 ->all();
         }
 
-        $statusChart = $this->buildLeadsStatusPieChart($user);
+        $statusChart = $this->buildLeadsStatusPieChart($user, request('leads_chart_period', 'month'));
 
         return view('dashboard', [
             'recentLeads' => $recentLeads,
@@ -190,8 +190,9 @@ class DashboardController extends Controller
 
     /**
      * Pie chart of leads by status (excludes "new" and statuses with 0 leads). Uses LaravelDaily/laravel-charts (Chart.js).
+     * Time filter: today, week, last_7_days, month, year (by leads created_at in app timezone).
      */
-    private function buildLeadsStatusPieChart($user): ?LaravelChart
+    private function buildLeadsStatusPieChart($user, string $period = 'month'): LaravelChart
     {
         $newStatusId = Status::where('slug', 'new')->value('id');
         $whereRaw = $newStatusId
@@ -199,6 +200,35 @@ class DashboardController extends Controller
             : '1=1';
         if ($user->isAgent()) {
             $whereRaw .= ' AND leads.assigned_to = '.(int) $user->id;
+        }
+
+        $now = Carbon::now(app_timezone());
+        $rangeStart = null;
+        $rangeEnd = null;
+        switch ($period) {
+            case 'today':
+                $rangeStart = $now->copy()->startOfDay()->utc();
+                $rangeEnd = $now->copy()->endOfDay()->utc();
+                break;
+            case 'week':
+                $rangeStart = $now->copy()->startOfWeek()->utc();
+                $rangeEnd = $now->copy()->endOfWeek()->utc();
+                break;
+            case 'last_7_days':
+                $rangeStart = $now->copy()->subDays(6)->startOfDay()->utc();
+                $rangeEnd = $now->copy()->endOfDay()->utc();
+                break;
+            case 'month':
+                $rangeStart = $now->copy()->startOfMonth()->utc();
+                $rangeEnd = $now->copy()->endOfMonth()->utc();
+                break;
+            case 'year':
+                $rangeStart = $now->copy()->startOfYear()->utc();
+                $rangeEnd = $now->copy()->endOfYear()->utc();
+                break;
+            default:
+                $rangeStart = $now->copy()->startOfMonth()->utc();
+                $rangeEnd = $now->copy()->endOfMonth()->utc();
         }
 
         $chartOptions = [
@@ -210,6 +240,10 @@ class DashboardController extends Controller
             'aggregate_function' => 'count',
             'chart_type' => 'pie',
             'where_raw' => $whereRaw,
+            'filter_field' => 'created_at',
+            'range_date_start' => $rangeStart->format('Y-m-d H:i:s'),
+            'range_date_end' => $rangeEnd->format('Y-m-d H:i:s'),
+            'chart_height' => '260px',
         ];
 
         return new LaravelChart($chartOptions);

@@ -42,8 +42,25 @@
 <div class="mt-8">
     <h2 class="text-lg font-semibold text-slate-900">Leads by status</h2>
     <p class="mt-1 text-sm text-slate-600">Percentage of leads per status (excluding New and statuses with no leads).</p>
+
+    @php
+        $period = request('leads_chart_period', 'month');
+        $periods = [
+            'today' => 'This day',
+            'week' => 'This week',
+            'last_7_days' => 'Last 7 days',
+            'month' => 'This month',
+            'year' => 'This year',
+        ];
+    @endphp
+    <div class="mt-2 flex flex-wrap items-center gap-2">
+        @foreach($periods as $value => $label)
+        <a href="{{ route('dashboard', ['leads_chart_period' => $value]) }}" class="rounded-lg px-3 py-1.5 text-sm font-medium transition {{ $period === $value ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">{{ $label }}</a>
+        @endforeach
+    </div>
+
     <div class="mt-4 rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <div class="h-80 max-w-md">
+        <div class="relative h-[320px] max-w-md overflow-hidden">
             {!! $statusChart->renderHtml() !!}
         </div>
     </div>
