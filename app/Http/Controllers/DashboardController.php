@@ -9,6 +9,7 @@ use App\Models\Status;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\View\View;
+use LaravelDaily\LaravelCharts\Classes\LaravelChart;
 
 class DashboardController extends Controller
 {
@@ -37,7 +38,7 @@ class DashboardController extends Controller
             $recentNotifications = CrmNotification::query()
                 ->where('target_user_id', $user->id)
                 ->orderByDesc('notify_at')
-                ->limit(10)
+                ->limit(5)
                 ->get(['id', 'type', 'title', 'message', 'action_url', 'notify_at', 'read_at']);
 
             $topAgentsLeaderboard = $this->buildTopAgentsLeaderboard(10);
@@ -98,6 +99,8 @@ class DashboardController extends Controller
                 ->all();
         }
 
+        $statusChart = $this->buildLeadsStatusPieChart($user);
+
         return view('dashboard', [
             'recentLeads' => $recentLeads,
             'recentNotifications' => $recentNotifications,
@@ -105,6 +108,7 @@ class DashboardController extends Controller
             'stats' => $stats,
             'newLeadsCount' => $newLeadsCount,
             'leadsCountByStatus' => $leadsCountByStatus,
+            'statusChart' => $statusChart,
         ]);
     }
 
@@ -182,5 +186,32 @@ class DashboardController extends Controller
             ->pluck('id')
             ->values()
             ->all();
+    }
+
+    /**
+     * Pie chart of leads by status (excludes "new" and statuses with 0 leads). Uses LaravelDaily/laravel-charts (Chart.js).
+     */
+    private function buildLeadsStatusPieChart($user): ?LaravelChart
+    {
+        $newStatusId = Status::where('slug', 'new')->value('id');
+        $whereRaw = $newStatusId
+            ? 'leads.status_id != '.(int) $newStatusId
+            : '1=1';
+        if ($user->isAgent()) {
+            $whereRaw .= ' AND leads.assigned_to = '.(int) $user->id;
+        }
+
+        $chartOptions = [
+            'chart_title' => 'Leads by status',
+            'report_type' => 'group_by_relationship',
+            'model' => Lead::class,
+            'relationship_name' => 'status',
+            'group_by_field' => 'name',
+            'aggregate_function' => 'count',
+            'chart_type' => 'pie',
+            'where_raw' => $whereRaw,
+        ];
+
+        return new LaravelChart($chartOptions);
     }
 }

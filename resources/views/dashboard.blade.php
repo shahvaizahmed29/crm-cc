@@ -34,11 +34,83 @@
     </div>
 </div>
 
+@if(isset($statusChart))
+@php
+    $statusChartData = $statusChart->getDatasets()[0]['data'] ?? collect();
+@endphp
+@if($statusChartData->isNotEmpty())
+<div class="mt-8">
+    <h2 class="text-lg font-semibold text-slate-900">Leads by status</h2>
+    <p class="mt-1 text-sm text-slate-600">Percentage of leads per status (excluding New and statuses with no leads).</p>
+    <div class="mt-4 rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <div class="h-80 max-w-md">
+            {!! $statusChart->renderHtml() !!}
+        </div>
+    </div>
+</div>
+@endif
+@endif
+
+<div class="mt-8">
+    <h2 class="text-lg font-semibold text-slate-900">Recent Activities</h2>
+    <div class="mt-4 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+        @if($recentLeads->isEmpty())
+            <p class="p-6 text-sm text-slate-500">No leads yet.</p>
+        @else
+            <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Name</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Status</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Assigned To</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Total Debt</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Address</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Last Update</th>
+                        <th scope="col" class="relative px-4 py-3"><span class="sr-only">Options</span></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 bg-white">
+                    @foreach($recentLeads as $lead)
+                    <tr>
+                        <td class="whitespace-nowrap px-4 py-3">
+                            <span class="font-medium text-slate-900">{{ $lead->fullName() }}</span>
+                            @if($lead->status->slug === 'new')
+                                <span class="ml-2 inline-flex rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-800">New</span>
+                            @endif
+                        </td>
+                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">{{ $lead->status->name ?? '—' }}</td>
+                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">{{ $lead->assignedTo?->displayName() ?? '—' }}</td>
+                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
+                            @if($lead->approx_debt) ${{ number_format($lead->approx_debt, 2) }} @else — @endif
+                        </td>
+                        <td class="max-w-xs truncate px-4 py-3 text-sm text-slate-600">{{ $lead->address ?? '—' }}</td>
+                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">{{ format_in_app_tz($lead->updated_at, 'Y-m-d H:i') }}</td>
+                        <td class="whitespace-nowrap px-4 py-3 text-right">
+                            <!-- <a href="{{ route('leads.edit', $lead) }}" class="rounded bg-sky-600 px-2 py-1 text-xs font-medium text-white hover:bg-sky-500">Edit</a> -->
+                            <a href="{{ route('leads.edit', $lead) }}" class="w-6 h-6 flex items-center justify-center text-blue-500 hover:text-blue-600 text-xs rounded-full transition-all cursor-pointer">
+                            <i class="fa-solid fa-pencil"></i>
+                        </a>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+            </div>
+        @endif
+    </div>
+    @if($recentLeads->isNotEmpty())
+        <p class="mt-2 text-sm text-slate-500">
+            <a href="{{ route('leads.index') }}" class="font-medium text-sky-600 hover:text-sky-500">View all leads &rarr;</a>
+        </p>
+    @endif
+</div>
+
 @if(isset($recentNotifications) && isset($topAgentsLeaderboard))
 <div class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
     <div>
         <h2 class="text-lg font-semibold text-slate-900">Latest notifications</h2>
-        <p class="mt-1 text-sm text-slate-600">Your 10 most recent notifications.</p>
+        <p class="mt-1 text-sm text-slate-600">Your 5 most recent notifications.</p>
         @if($recentNotifications->isNotEmpty())
         <div class="mt-4 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
             <ul class="divide-y divide-slate-200 max-h-[420px] overflow-y-auto">
@@ -129,58 +201,10 @@
 </div>
 @endif
 
-<div class="mt-8">
-    <h2 class="text-lg font-semibold text-slate-900">Recent Activities</h2>
-    <div class="mt-4 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-        @if($recentLeads->isEmpty())
-            <p class="p-6 text-sm text-slate-500">No leads yet.</p>
-        @else
-            <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-slate-200">
-                <thead class="bg-slate-50">
-                    <tr>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Name</th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Status</th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Assigned To</th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Total Debt</th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Address</th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Last Update</th>
-                        <th scope="col" class="relative px-4 py-3"><span class="sr-only">Options</span></th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-200 bg-white">
-                    @foreach($recentLeads as $lead)
-                    <tr>
-                        <td class="whitespace-nowrap px-4 py-3">
-                            <span class="font-medium text-slate-900">{{ $lead->fullName() }}</span>
-                            @if($lead->status->slug === 'new')
-                                <span class="ml-2 inline-flex rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-800">New</span>
-                            @endif
-                        </td>
-                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">{{ $lead->status->name ?? '—' }}</td>
-                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">{{ $lead->assignedTo?->displayName() ?? '—' }}</td>
-                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
-                            @if($lead->approx_debt) ${{ number_format($lead->approx_debt, 2) }} @else — @endif
-                        </td>
-                        <td class="max-w-xs truncate px-4 py-3 text-sm text-slate-600">{{ $lead->address ?? '—' }}</td>
-                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">{{ format_in_app_tz($lead->updated_at, 'Y-m-d H:i') }}</td>
-                        <td class="whitespace-nowrap px-4 py-3 text-right">
-                            <!-- <a href="{{ route('leads.edit', $lead) }}" class="rounded bg-sky-600 px-2 py-1 text-xs font-medium text-white hover:bg-sky-500">Edit</a> -->
-                            <a href="{{ route('leads.edit', $lead) }}" class="w-6 h-6 flex items-center justify-center text-blue-500 hover:text-blue-600 text-xs rounded-full transition-all cursor-pointer">
-                            <i class="fa-solid fa-pencil"></i>
-                        </a>
-                        </td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-            </div>
-        @endif
-    </div>
-    @if($recentLeads->isNotEmpty())
-        <p class="mt-2 text-sm text-slate-500">
-            <a href="{{ route('leads.index') }}" class="font-medium text-sky-600 hover:text-sky-500">View all leads &rarr;</a>
-        </p>
-    @endif
-</div>
+@if(isset($statusChart) && ($statusChart->getDatasets()[0]['data'] ?? collect())->isNotEmpty())
+@push('scripts')
+{!! $statusChart->renderChartJsLibrary() !!}
+{!! $statusChart->renderJs() !!}
+@endpush
+@endif
 @endsection
