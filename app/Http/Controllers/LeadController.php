@@ -93,11 +93,17 @@ class LeadController extends Controller
         }
 
         if ($request->filled('date_from')) {
-            $query->whereDate('updated_at', '>=', $request->date_from);
+            $range = date_filter_utc_range($request->date_from, null);
+            if ($range['start'] !== null) {
+                $query->where('updated_at', '>=', $range['start']);
+            }
         }
 
         if ($request->filled('date_to')) {
-            $query->whereDate('updated_at', '<=', $request->date_to);
+            $range = date_filter_utc_range(null, $request->date_to);
+            if ($range['end'] !== null) {
+                $query->where('updated_at', '<=', $range['end']);
+            }
         }
 
         $keyword = trim((string) $request->query('keyword', ''));
@@ -149,11 +155,48 @@ class LeadController extends Controller
 
     public function adminNewLeads(Request $request): View
     {
-        $leads = $this->newLeadsQuery()
-            ->with(['assignedTo', 'status', 'phones', 'emails'])
-            ->latest('updated_at')
-            ->paginate(20)
-            ->withQueryString();
+        $request->validate([
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date'],
+            'keyword' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $query = $this->newLeadsQuery()->with(['assignedTo', 'status', 'phones', 'emails']);
+
+        if (
+            $request->has('dnc')
+            && in_array((string) $request->query('dnc'), ['0', '1'], true)
+        ) {
+            $query->where('is_dnc', $request->boolean('dnc'));
+        }
+
+        if ($request->filled('date_from')) {
+            $range = date_filter_utc_range($request->date_from, null);
+            if ($range['start'] !== null) {
+                $query->where('updated_at', '>=', $range['start']);
+            }
+        }
+
+        if ($request->filled('date_to')) {
+            $range = date_filter_utc_range(null, $request->date_to);
+            if ($range['end'] !== null) {
+                $query->where('updated_at', '<=', $range['end']);
+            }
+        }
+
+        $keyword = trim((string) $request->query('keyword', ''));
+        if ($keyword !== '') {
+            $query->where(function ($q) use ($keyword): void {
+                $like = '%' . $keyword . '%';
+                $q->where('first_name', 'like', $like)
+                    ->orWhere('last_name', 'like', $like)
+                    ->orWhereHas('phones', function ($phones) use ($like): void {
+                        $phones->where('phone', 'like', $like);
+                    });
+            });
+        }
+
+        $leads = $query->latest('updated_at')->paginate(20)->withQueryString();
 
         return view('leads.new', compact('leads'));
     }
@@ -738,7 +781,7 @@ class LeadController extends Controller
                 }
             } elseif ($hasDateTime) {
                 try {
-                    $callbackAt = \Carbon\Carbon::parse($date . ' ' . $time, config('app.timezone'));
+                    $callbackAt = \Carbon\Carbon::parse($date . ' ' . $time, app_timezone());
                     if ($callbackAt->isPast()) {
                         return back()->withErrors(['callback_date' => 'Callback date and time must be in the future.'])->withInput();
                     }
@@ -1019,7 +1062,7 @@ class LeadController extends Controller
             } else {
                 if ($date !== null && $date !== '' && $time !== null && $time !== '') {
                     try {
-                        $callbackAt = \Carbon\Carbon::parse($date . ' ' . $time, config('app.timezone'));
+                        $callbackAt = \Carbon\Carbon::parse($date . ' ' . $time, app_timezone());
                         if ($callbackAt->isPast()) {
                             return back()->withErrors(['callback_date' => 'Callback date and time must be in the future.'])->withInput();
                         }
@@ -1179,10 +1222,16 @@ class LeadController extends Controller
         }
 
         if ($request->filled('date_from')) {
-            $query->whereDate('updated_at', '>=', (string) $request->query('date_from'));
+            $range = date_filter_utc_range((string) $request->query('date_from'), null);
+            if ($range['start'] !== null) {
+                $query->where('updated_at', '>=', $range['start']);
+            }
         }
         if ($request->filled('date_to')) {
-            $query->whereDate('updated_at', '<=', (string) $request->query('date_to'));
+            $range = date_filter_utc_range(null, (string) $request->query('date_to'));
+            if ($range['end'] !== null) {
+                $query->where('updated_at', '<=', $range['end']);
+            }
         }
 
         $keyword = trim((string) $request->query('keyword', ''));
@@ -1739,7 +1788,7 @@ class LeadController extends Controller
                 return true;
             }
         } elseif ($callbackDate !== null && $callbackDate !== '' && $callbackTime !== null && $callbackTime !== '') {
-            $callbackAt = \Carbon\Carbon::parse($callbackDate . ' ' . $callbackTime, config('app.timezone'));
+            $callbackAt = \Carbon\Carbon::parse($callbackDate . ' ' . $callbackTime, app_timezone());
         }
 
         if ($callbackAt === null) {
@@ -1782,7 +1831,7 @@ class LeadController extends Controller
             'entity_type' => 'lead',
             'entity_id' => $lead->id,
             'title' => 'Callback: ' . $lead->fullName(),
-            'message' => 'Scheduled for ' . $callbackAt->copy()->setTimezone(config('app.timezone'))->format('M j, Y g:i A') . '.',
+            'message' => 'Scheduled for ' . $callbackAt->copy()->setTimezone(app_timezone())->format('M j, Y g:i A') . '.',
             'action_url' => route('leads.edit', $lead),
             'notify_at' => $notifyAt,
             'sent_at' => null,

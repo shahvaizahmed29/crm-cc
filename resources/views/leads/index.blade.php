@@ -199,7 +199,7 @@
                     <td x-show="isVisible('fees')" class="whitespace-nowrap px-4 py-3 text-sm text-slate-600" data-column="fees">
                         @if($lead->fees) ${{ number_format($lead->fees, 2) }} @else — @endif
                     </td>
-                    <td x-show="isVisible('last_update')" class="whitespace-nowrap px-4 py-3 text-sm text-slate-600" data-column="last_update">{{ $lead->updated_at->format('Y-m-d H:i') }}</td>
+                    <td x-show="isVisible('last_update')" class="whitespace-nowrap px-4 py-3 text-sm text-slate-600" data-column="last_update">{{ format_in_app_tz($lead->updated_at, 'Y-m-d H:i') }}</td>
                     <td x-show="isVisible('dnc')" class="whitespace-nowrap px-4 py-3 text-sm" data-column="dnc">
                         @if($lead->is_dnc)
                         <span class="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">DNC</span>

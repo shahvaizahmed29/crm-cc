@@ -21,6 +21,60 @@
     </div>
 </div>
 
+<form method="GET" action="{{ route('leads.new.index') }}" class="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div class="mb-3">
+        <h2 class="text-sm font-semibold text-slate-900">Filter New Leads</h2>
+        <p class="text-xs text-slate-500">Use date range and optional filters to narrow results.</p>
+    </div>
+
+    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div class="xl:col-span-2">
+            <label for="keyword" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">Keyword</label>
+            <input
+                type="text"
+                id="keyword"
+                name="keyword"
+                value="{{ request('keyword') }}"
+                placeholder="First name, last name, or phone"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
+        </div>
+
+        <div>
+            <label for="date_from" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">From Date</label>
+            <input
+                type="date"
+                id="date_from"
+                name="date_from"
+                value="{{ request('date_from') }}"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
+        </div>
+
+        <div>
+            <label for="date_to" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">To Date</label>
+            <input
+                type="date"
+                id="date_to"
+                name="date_to"
+                value="{{ request('date_to') }}"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
+        </div>
+
+        <div>
+            <label for="dnc" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">DNC</label>
+            <select name="dnc" id="dnc" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
+                <option value="">All</option>
+                <option value="1" {{ request('dnc') === '1' ? 'selected' : '' }}>DNC only</option>
+                <option value="0" {{ request('dnc') === '0' ? 'selected' : '' }}>Non-DNC</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+        <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500">Apply Filters</button>
+        <a href="{{ route('leads.new.index') }}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Reset</a>
+    </div>
+</form>
+
 <div class="mt-6 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-200">
@@ -63,7 +117,7 @@
                         @if($lead->approx_debt) ${{ number_format($lead->approx_debt, 2) }} @else — @endif
                     </td>
                     <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
-                        {{ $lead->updated_at->format('Y-m-d H:i') }}
+                        {{ format_in_app_tz($lead->updated_at, 'Y-m-d H:i') }}
                     </td>
                     <td class="whitespace-nowrap px-4 py-3 text-sm">
                         @if($lead->is_dnc)

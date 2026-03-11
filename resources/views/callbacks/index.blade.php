@@ -32,7 +32,7 @@
                                 {{ $lead ? $lead->fullName() : '—' }}
                             </td>
                             <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
-                                {{ $notif->notify_at?->format('M j, Y g:i A') }}
+                                {{ format_in_app_tz($notif->notify_at, 'M j, Y g:i A') }}
                             </td>
                             <td class="px-4 py-3 text-sm text-slate-600">{{ $notif->message ?? '—' }}</td>
                             <td class="whitespace-nowrap px-4 py-3 text-right">

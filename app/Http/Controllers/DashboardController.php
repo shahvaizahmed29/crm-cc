@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Lead;
 use App\Models\Setting;
 use App\Models\Status;
+use Carbon\Carbon;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -28,18 +29,29 @@ class DashboardController extends Controller
 
         $recentLeads = $leadsQuery->latest('updated_at')->limit(10)->get();
 
+        $now = Carbon::now(app_timezone());
+        $todayStart = $now->copy()->startOfDay()->utc();
+        $todayEnd = $now->copy()->endOfDay()->utc();
+        $weekStart = $now->copy()->startOfWeek()->utc();
+        $weekEnd = $now->copy()->endOfWeek()->utc();
+        $monthStart = $now->copy()->startOfMonth()->utc();
+        $monthEnd = $now->copy()->endOfMonth()->utc();
+        $lastMonth = $now->copy()->subMonth();
+        $lastMonthStart = $lastMonth->copy()->startOfMonth()->utc();
+        $lastMonthEnd = $lastMonth->copy()->endOfMonth()->utc();
+
         $stats = [
-            'monthly_leads' => Lead::whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->count(),
-            'daily_leads' => Lead::whereDate('created_at', now()->toDateString())->count(),
-            'weekly_leads' => Lead::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count(),
-            'last_month' => Lead::whereMonth('created_at', now()->subMonth()->month)->whereYear('created_at', now()->subMonth()->year)->count(),
+            'monthly_leads' => Lead::whereBetween('created_at', [$monthStart, $monthEnd])->count(),
+            'daily_leads' => Lead::whereBetween('created_at', [$todayStart, $todayEnd])->count(),
+            'weekly_leads' => Lead::whereBetween('created_at', [$weekStart, $weekEnd])->count(),
+            'last_month' => Lead::whereBetween('created_at', [$lastMonthStart, $lastMonthEnd])->count(),
         ];
 
         if ($user->isAgent()) {
-            $stats['monthly_leads'] = Lead::where('assigned_to', $user->id)->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->count();
-            $stats['daily_leads'] = Lead::where('assigned_to', $user->id)->whereDate('created_at', now()->toDateString())->count();
-            $stats['weekly_leads'] = Lead::where('assigned_to', $user->id)->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count();
-            $stats['last_month'] = Lead::where('assigned_to', $user->id)->whereMonth('created_at', now()->subMonth()->month)->whereYear('created_at', now()->subMonth()->year)->count();
+            $stats['monthly_leads'] = Lead::where('assigned_to', $user->id)->whereBetween('created_at', [$monthStart, $monthEnd])->count();
+            $stats['daily_leads'] = Lead::where('assigned_to', $user->id)->whereBetween('created_at', [$todayStart, $todayEnd])->count();
+            $stats['weekly_leads'] = Lead::where('assigned_to', $user->id)->whereBetween('created_at', [$weekStart, $weekEnd])->count();
+            $stats['last_month'] = Lead::where('assigned_to', $user->id)->whereBetween('created_at', [$lastMonthStart, $lastMonthEnd])->count();
         }
 
         $newLeadsCount = null;

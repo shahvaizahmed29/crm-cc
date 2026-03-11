@@ -253,7 +253,7 @@
                              <p class="mt-2 whitespace-pre-wrap text-xs text-slate-700"><span class="font-medium">Comment:</span> {{ $card->comment }}</p>
                              @endif
                              <p class="mt-2 text-[11px] text-slate-500">
-                                 Added by {{ $card->createdBy?->displayName() ?? 'Deleted User' }} on {{ $card->created_at->format('Y-m-d H:i') }}
+                                 Added by {{ $card->createdBy?->displayName() ?? 'Deleted User' }} on {{ format_in_app_tz($card->created_at, 'Y-m-d H:i') }}
                              </p>
                          </div>
                          @empty
@@ -346,7 +346,7 @@
                          <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
                              <p class="whitespace-pre-wrap text-sm text-slate-900">{{ $note->note }}</p>
                              <p class="mt-2 text-xs text-slate-500">
-                                 By {{ $note->createdBy?->displayName() ?? 'Deleted User' }} on {{ $note->created_at->format('Y-m-d H:i') }}
+                                 By {{ $note->createdBy?->displayName() ?? 'Deleted User' }} on {{ format_in_app_tz($note->created_at, 'Y-m-d H:i') }}
                              </p>
                          </div>
                          @empty

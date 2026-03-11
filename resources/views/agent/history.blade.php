@@ -31,7 +31,7 @@
                 <tr>
                     <td class="px-4 py-3 text-sm font-medium text-slate-900">{{ $lead->fullName() }}</td>
                     <td class="px-4 py-3 text-sm text-slate-700">{{ $lead->status->name }}</td>
-                    <td class="px-4 py-3 text-sm text-slate-600">{{ $lead->updated_at->format('Y-m-d H:i') }}</td>
+                    <td class="px-4 py-3 text-sm text-slate-600">{{ format_in_app_tz($lead->updated_at, 'Y-m-d H:i') }}</td>
                     <td class="px-4 py-3 text-right">
                         <!-- <a href="{{ route('leads.edit', $lead) }}" class="rounded bg-sky-600 px-2 py-1 text-xs font-medium text-white hover:bg-sky-500">
                             Update Status

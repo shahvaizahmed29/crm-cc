@@ -89,7 +89,7 @@
                             @if($lead->approx_debt) ${{ number_format($lead->approx_debt, 2) }} @else — @endif
                         </td>
                         <td class="max-w-xs truncate px-4 py-3 text-sm text-slate-600">{{ $lead->address ?? '—' }}</td>
-                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">{{ $lead->updated_at->format('Y-m-d H:i') }}</td>
+                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">{{ format_in_app_tz($lead->updated_at, 'Y-m-d H:i') }}</td>
                         <td class="whitespace-nowrap px-4 py-3 text-right">
                             <!-- <a href="{{ route('leads.edit', $lead) }}" class="rounded bg-sky-600 px-2 py-1 text-xs font-medium text-white hover:bg-sky-500">Edit</a> -->
                             <a href="{{ route('leads.edit', $lead) }}" class="w-6 h-6 flex items-center justify-center text-blue-500 hover:text-blue-600 text-xs rounded-full transition-all cursor-pointer">

@@ -60,7 +60,7 @@
             @endif
             <div>
                 <dt class="text-xs text-slate-500">Last update</dt>
-                <dd class="mt-0.5 text-sm text-slate-900">{{ $lead->updated_at->format('Y-m-d H:i:s') }}</dd>
+                <dd class="mt-0.5 text-sm text-slate-900">{{ format_in_app_tz($lead->updated_at, 'Y-m-d H:i:s') }}</dd>
             </div>
         </dl>
         @if($lead->details)
@@ -139,7 +139,7 @@
                                         <p class="mt-0.5 text-xs text-slate-600">{{ $notif->message }}</p>
                                     @endif
                                     <p class="mt-1 text-xs text-slate-500">
-                                        Notify at: {{ $notif->notify_at?->format('M j, Y g:i A') }}
+                                        Notify at: {{ format_in_app_tz($notif->notify_at, 'M j, Y g:i A') }}
                                         @if($notif->createdBy)
                                             · Created by {{ $notif->createdBy->displayName() }}
                                         @endif

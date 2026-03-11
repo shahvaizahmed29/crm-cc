@@ -59,7 +59,7 @@
             <tbody class="divide-y divide-slate-200 bg-white">
                 @forelse($importHistories as $history)
                     <tr>
-                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{{ $history->created_at->format('Y-m-d H:i') }}</td>
+                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{{ format_in_app_tz($history->created_at, 'Y-m-d H:i') }}</td>
                         <td class="px-4 py-3 text-sm text-slate-700">{{ $history->original_file_name }}</td>
                         <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{{ $history->uploadedBy?->displayName() ?? 'System' }}</td>
                         <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{{ $history->defaultStatus?->name ?? '—' }}</td>

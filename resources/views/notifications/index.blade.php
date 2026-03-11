@@ -26,7 +26,7 @@
                         <p class="mt-1 text-sm text-slate-700">{{ $notification->message }}</p>
                     @endif
                     <p class="mt-1 text-xs text-slate-500">
-                        Type: {{ $notification->type }} • Notify at: {{ $notification->notify_at?->format('Y-m-d H:i:s') }}
+                        Type: {{ $notification->type }} • Notify at: {{ format_in_app_tz($notification->notify_at, 'Y-m-d H:i:s') }}
                     </p>
                 </div>
                 <div class="flex items-center gap-2">

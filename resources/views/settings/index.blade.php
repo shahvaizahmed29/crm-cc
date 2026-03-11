@@ -161,7 +161,26 @@
     </div>
 
     <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 class="text-base font-semibold text-slate-900">IP whitelist</h2>
+        <h2 class="text-base font-semibold text-slate-900">Display timezone</h2>
+        <p class="mt-1 text-sm text-slate-500">All dates and times in the app are shown in this timezone. Date filters (e.g. From/To) are interpreted in this timezone. Database stores UTC.</p>
+        <div class="mt-3">
+            <label for="app_timezone" class="block text-sm font-medium text-slate-700">Timezone</label>
+            <select
+                name="app_timezone"
+                id="app_timezone"
+                class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+            >
+                @foreach($timezoneOptions as $opt)
+                    <option value="{{ $opt['value'] }}" {{ old('app_timezone', $appTimezone) === $opt['value'] ? 'selected' : '' }}>{{ $opt['label'] }}</option>
+                @endforeach
+            </select>
+        </div>
+        @error('app_timezone')
+            <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
+        @enderror
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <p class="mt-1 text-sm text-slate-500">Only these IP addresses can access the application. One IP per line. Leave empty to allow all IPs.</p>
         <div class="mt-3">
             <label for="ip_whitelist" class="block text-sm font-medium text-slate-700">Whitelisted IPs</label>

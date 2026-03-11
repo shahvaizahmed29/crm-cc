@@ -20,6 +20,47 @@ class SettingController extends Controller
         'drop',
     ];
 
+    /**
+     * Timezone options for the dropdown: Carbon/PHP valid identifiers with human-readable labels.
+     * Format: "City / Region (+5:00)" e.g. "Karachi / Asia (+5:00)".
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function timezoneOptions(): array
+    {
+        $identifiers = \DateTimeZone::listIdentifiers();
+        $options = [];
+
+        foreach ($identifiers as $id) {
+            $zone = new \DateTimeZone($id);
+            $dt = new \DateTime('now', $zone);
+            $offsetSeconds = $dt->getOffset();
+            $hours = (int) floor($offsetSeconds / 3600);
+            $minutes = (int) abs(($offsetSeconds % 3600) / 60);
+            $offsetStr = sprintf('%+03d:%02d', $hours, $minutes);
+
+            $parts = explode('/', $id);
+            $region = $parts[0] ?? $id;
+            $city = end($parts);
+            if ($city !== $region && $city !== $id) {
+                $label = $city . ' / ' . $region . ' (' . $offsetStr . ')';
+            } else {
+                $label = $id . ' (' . $offsetStr . ')';
+            }
+
+            $options[] = ['value' => $id, 'label' => $label, 'offset' => $offsetSeconds];
+        }
+
+        usort($options, static function (array $a, array $b): int {
+            if ($a['offset'] !== $b['offset']) {
+                return $a['offset'] <=> $b['offset'];
+            }
+            return strcasecmp($a['label'], $b['label']);
+        });
+
+        return array_map(static fn (array $o): array => ['value' => $o['value'], 'label' => $o['label']], $options);
+    }
+
     public function index(): View
     {
         $agentHistoryLimit = Setting::get('agent_history_limit', '50');
@@ -27,8 +68,10 @@ class SettingController extends Controller
         $crSoundNotificationsEnabled = Setting::get('cr_sound_notifications_enabled', '1') === '1';
         $callbackReminderMinutes = (int) (Setting::get('callback_reminder_minutes', '15') ?? '15');
         $newLeadsNotificationThreshold = Setting::get('new_leads_notification_threshold', '');
+        $appTimezone = Setting::get('app_timezone', config('app.timezone')) ?: config('app.timezone');
         $ipWhitelist = Setting::getIpWhitelistCached();
         $statuses = Status::orderBy('name')->get(['id', 'name', 'slug']);
+        $timezoneOptions = $this->timezoneOptions();
 
         return view('settings.index', [
             'agentHistoryLimit' => $agentHistoryLimit,
@@ -36,8 +79,10 @@ class SettingController extends Controller
             'crSoundNotificationsEnabled' => $crSoundNotificationsEnabled,
             'callbackReminderMinutes' => $callbackReminderMinutes,
             'newLeadsNotificationThreshold' => $newLeadsNotificationThreshold,
+            'appTimezone' => $appTimezone,
             'ipWhitelist' => $ipWhitelist,
             'statuses' => $statuses,
+            'timezoneOptions' => $timezoneOptions,
         ]);
     }
 
@@ -50,6 +95,7 @@ class SettingController extends Controller
             'cr_sound_notifications_enabled' => ['required', 'boolean'],
             'callback_reminder_minutes' => ['required', 'integer', 'min:1', 'max:1440'],
             'new_leads_notification_threshold' => ['nullable', 'integer', 'min:0', 'max:10000'],
+            'app_timezone' => ['required', 'string', 'timezone'],
             'ip_whitelist' => ['nullable', 'string'],
         ]);
 
@@ -63,6 +109,8 @@ class SettingController extends Controller
             ? (string) $validated['new_leads_notification_threshold']
             : '';
         Setting::put('new_leads_notification_threshold', $threshold);
+
+        Setting::put('app_timezone', $validated['app_timezone']);
 
         $ipRaw = $validated['ip_whitelist'] ?? '';
         $ipList = array_values(array_unique(array_filter(
