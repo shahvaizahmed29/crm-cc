@@ -38,8 +38,9 @@
         <p class="text-xs text-slate-500">Use date range and optional filters to narrow results.</p>
     </div>
 
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div>
+    {{-- Exactly 2 rows: row1 = Keyword, Status, DNC | row2 = Assigned To, From Date, To Date --}}
+    <div class="grid grid-cols-3 gap-3">
+        <div class="min-w-0">
             <label for="keyword" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">Keyword</label>
             <input
                 type="text"
@@ -50,7 +51,7 @@
                 class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
         </div>
         @if($isAdmin || ($isAgent && $statuses->isNotEmpty()))
-            <div>
+            <div class="min-w-0">
                 <label for="status" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">Status</label>
                 <select name="status" id="status" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
                     <option value="">All statuses</option>
@@ -59,9 +60,11 @@
                     @endforeach
                 </select>
             </div>
+        @else
+            <div></div>
         @endif
         @if($isAdmin)
-            <div>
+            <div class="min-w-0">
                 <label for="dnc" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">DNC</label>
                 <select name="dnc" id="dnc" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
                     <option value="">All</option>
@@ -69,12 +72,12 @@
                     <option value="0" {{ request('dnc') === '0' ? 'selected' : '' }}>Non-DNC</option>
                 </select>
             </div>
+        @else
+            <div></div>
         @endif
-    </div>
 
-    <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
         @if($isAdmin)
-            <div>
+            <div class="min-w-0">
                 <label for="assigned_to" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">Assigned To</label>
                 <select name="assigned_to" id="assigned_to" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
                     <option value="all" {{ (request('assigned_to') === null || request('assigned_to') === 'all') ? 'selected' : '' }}>All</option>
@@ -84,8 +87,10 @@
                     @endforeach
                 </select>
             </div>
+        @else
+            <div></div>
         @endif
-        <div>
+        <div class="min-w-0">
             <label for="date_from" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">From Date</label>
             <input
                 type="date"
@@ -94,7 +99,7 @@
                 value="{{ request('date_from') }}"
                 class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200">
         </div>
-        <div>
+        <div class="min-w-0">
             <label for="date_to" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">To Date</label>
             <input
                 type="date"
