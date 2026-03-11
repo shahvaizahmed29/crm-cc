@@ -99,7 +99,12 @@ class DashboardController extends Controller
                 ->all();
         }
 
-        $statusChart = $this->buildLeadsStatusPieChart($user, request('leads_chart_period', 'month'));
+        $statusChart = $this->buildLeadsStatusPieChart(
+            $user,
+            request('leads_chart_period', 'month'),
+            request('leads_chart_from'),
+            request('leads_chart_to')
+        );
 
         return view('dashboard', [
             'recentLeads' => $recentLeads,
@@ -190,9 +195,12 @@ class DashboardController extends Controller
 
     /**
      * Pie chart of leads by status (excludes "new" and statuses with 0 leads). Uses LaravelDaily/laravel-charts (Chart.js).
-     * Time filter: today, week, last_7_days, month, year (by leads created_at in app timezone).
+     * Time filter: today, yesterday, week, last_7_days, month, year, or custom (from/to in app timezone).
+     *
+     * @param  string|null  $from  For period=custom: start datetime (app TZ), e.g. Y-m-d\TH:i or Y-m-d H:i:s
+     * @param  string|null  $to    For period=custom: end datetime (app TZ)
      */
-    private function buildLeadsStatusPieChart($user, string $period = 'month'): LaravelChart
+    private function buildLeadsStatusPieChart($user, string $period = 'month', ?string $from = null, ?string $to = null): LaravelChart
     {
         $newStatusId = Status::where('slug', 'new')->value('id');
         $whereRaw = $newStatusId
@@ -205,30 +213,52 @@ class DashboardController extends Controller
         $now = Carbon::now(app_timezone());
         $rangeStart = null;
         $rangeEnd = null;
-        switch ($period) {
-            case 'today':
-                $rangeStart = $now->copy()->startOfDay()->utc();
-                $rangeEnd = $now->copy()->endOfDay()->utc();
-                break;
-            case 'week':
-                $rangeStart = $now->copy()->startOfWeek()->utc();
-                $rangeEnd = $now->copy()->endOfWeek()->utc();
-                break;
-            case 'last_7_days':
-                $rangeStart = $now->copy()->subDays(6)->startOfDay()->utc();
-                $rangeEnd = $now->copy()->endOfDay()->utc();
-                break;
-            case 'month':
+
+        if ($period === 'custom' && $from !== null && $from !== '' && $to !== null && $to !== '') {
+            try {
+                $rangeStart = Carbon::parse($from, app_timezone())->utc();
+                $rangeEnd = Carbon::parse($to, app_timezone())->utc();
+                if ($rangeStart->gt($rangeEnd)) {
+                    [$rangeStart, $rangeEnd] = [$rangeEnd, $rangeStart];
+                }
+            } catch (\Throwable) {
                 $rangeStart = $now->copy()->startOfMonth()->utc();
-                $rangeEnd = $now->copy()->endOfMonth()->utc();
-                break;
-            case 'year':
-                $rangeStart = $now->copy()->startOfYear()->utc();
-                $rangeEnd = $now->copy()->endOfYear()->utc();
-                break;
-            default:
-                $rangeStart = $now->copy()->startOfMonth()->utc();
-                $rangeEnd = $now->copy()->endOfMonth()->utc();
+                $rangeEnd = $now->copy()->endOfDay()->utc();
+            }
+        } elseif ($period === 'custom') {
+            // Custom selected but no from/to yet: default to start of month through now
+            $rangeStart = $now->copy()->startOfMonth()->utc();
+            $rangeEnd = $now->copy()->endOfDay()->utc();
+        } else {
+            switch ($period) {
+                case 'today':
+                    $rangeStart = $now->copy()->startOfDay()->utc();
+                    $rangeEnd = $now->copy()->endOfDay()->utc();
+                    break;
+                case 'yesterday':
+                    $rangeStart = $now->copy()->subDay()->startOfDay()->utc();
+                    $rangeEnd = $now->copy()->subDay()->endOfDay()->utc();
+                    break;
+                case 'week':
+                    $rangeStart = $now->copy()->startOfWeek()->utc();
+                    $rangeEnd = $now->copy()->endOfWeek()->utc();
+                    break;
+                case 'last_7_days':
+                    $rangeStart = $now->copy()->subDays(6)->startOfDay()->utc();
+                    $rangeEnd = $now->copy()->endOfDay()->utc();
+                    break;
+                case 'month':
+                    $rangeStart = $now->copy()->startOfMonth()->utc();
+                    $rangeEnd = $now->copy()->endOfMonth()->utc();
+                    break;
+                case 'year':
+                    $rangeStart = $now->copy()->startOfYear()->utc();
+                    $rangeEnd = $now->copy()->endOfYear()->utc();
+                    break;
+                default:
+                    $rangeStart = $now->copy()->startOfMonth()->utc();
+                    $rangeEnd = $now->copy()->endOfMonth()->utc();
+            }
         }
 
         $chartOptions = [

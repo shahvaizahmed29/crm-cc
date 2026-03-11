@@ -47,15 +47,39 @@
         $period = request('leads_chart_period', 'month');
         $periods = [
             'today' => 'This day',
+            'yesterday' => 'Yesterday',
             'week' => 'This week',
             'last_7_days' => 'Last 7 days',
             'month' => 'This month',
             'year' => 'This year',
+            'custom' => 'Custom',
         ];
+        $customFrom = request('leads_chart_from');
+        $customTo = request('leads_chart_to');
     @endphp
     <div class="mt-2 flex flex-wrap items-center gap-2">
         @foreach($periods as $value => $label)
+        @if($value === 'custom')
+            <span class="inline-flex items-center gap-2">
+                <a href="{{ route('dashboard', ['leads_chart_period' => 'custom']) }}" class="rounded-lg px-3 py-1.5 text-sm font-medium transition {{ $period === 'custom' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">{{ $label }}</a>
+                @if($period === 'custom')
+                <form method="get" action="{{ route('dashboard') }}" class="inline-flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                    <input type="hidden" name="leads_chart_period" value="custom">
+                    <label class="flex flex-col gap-0.5">
+                        <span class="text-xs font-medium text-slate-500">From</span>
+                        <input type="datetime-local" name="leads_chart_from" value="{{ $customFrom }}" class="rounded border border-slate-300 bg-white px-2 py-1 text-sm">
+                    </label>
+                    <label class="flex flex-col gap-0.5">
+                        <span class="text-xs font-medium text-slate-500">To</span>
+                        <input type="datetime-local" name="leads_chart_to" value="{{ $customTo }}" class="rounded border border-slate-300 bg-white px-2 py-1 text-sm">
+                    </label>
+                    <button type="submit" class="rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-500">Apply</button>
+                </form>
+                @endif
+            </span>
+        @else
         <a href="{{ route('dashboard', ['leads_chart_period' => $value]) }}" class="rounded-lg px-3 py-1.5 text-sm font-medium transition {{ $period === $value ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200' }}">{{ $label }}</a>
+        @endif
         @endforeach
     </div>
 
