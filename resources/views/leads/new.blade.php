@@ -94,8 +94,9 @@
                         class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Name
                     </th>
                     <th scope="col"
-                        class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">SSN /
-                        Phone</th>
+                        class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">SSN</th>
+                    <th scope="col"
+                        class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Phone</th>
                     <th scope="col"
                         class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
                         <a href="{{ $sortUrl('approx_debt') }}" class="inline-flex items-center gap-0.5 group">
@@ -148,7 +149,10 @@
                             class="font-medium text-sky-600 hover:text-sky-500">{{ $lead->fullName() }}</a>
                     </td>
                     <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
-                        {{ $lead->ssn ?: ($lead->phones->first()?->phone ?: '—') }}
+                        {{ $lead->ssn ?? '—' }}
+                    </td>
+                    <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
+                        {{ $lead->phones->first()?->phone ?? '—' }}
                     </td>
                     <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
                         @if($lead->approx_debt) ${{ number_format($lead->approx_debt, 2) }} @else — @endif
@@ -254,7 +258,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="9" class="px-4 py-8 text-center text-sm text-slate-500">No new leads found.</td>
+                    <td colspan="10" class="px-4 py-8 text-center text-sm text-slate-500">No new leads found.</td>
                 </tr>
                 @endforelse
             </tbody>
