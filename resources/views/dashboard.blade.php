@@ -34,27 +34,72 @@
     </div>
 </div>
 
-@if(isset($recentNotifications) && $recentNotifications->isNotEmpty())
-<div class="mt-8">
-    <h2 class="text-lg font-semibold text-slate-900">Latest notifications</h2>
-    <p class="mt-1 text-sm text-slate-600">Your 10 most recent notifications.</p>
-    <div class="mt-4 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-        <ul class="divide-y divide-slate-200">
-            @foreach($recentNotifications as $notif)
-            <li class="{{ $notif->read_at ? 'bg-white' : 'bg-sky-50/70' }}">
-                <a href="{{ route('notifications.open', $notif) }}" class="block px-4 py-3 hover:bg-slate-50 transition-colors">
-                    <p class="text-sm font-medium {{ $notif->read_at ? 'text-slate-600' : 'text-slate-900' }}">{{ $notif->title }}</p>
-                    @if($notif->message)
-                        <p class="mt-0.5 text-xs text-slate-500 line-clamp-2">{{ $notif->message }}</p>
-                    @endif
-                    <p class="mt-1 text-xs text-slate-400">{{ format_in_app_tz($notif->notify_at, 'M j, Y g:i A') }}</p>
-                </a>
-            </li>
-            @endforeach
-        </ul>
-        <div class="border-t border-slate-200 bg-slate-50 px-4 py-2">
-            <a href="{{ route('notifications.index') }}" class="text-sm font-medium text-sky-600 hover:text-sky-500">View all notifications &rarr;</a>
+@if(isset($recentNotifications) && isset($topAgentsLeaderboard))
+<div class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <div>
+        <h2 class="text-lg font-semibold text-slate-900">Latest notifications</h2>
+        <p class="mt-1 text-sm text-slate-600">Your 10 most recent notifications.</p>
+        @if($recentNotifications->isNotEmpty())
+        <div class="mt-4 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+            <ul class="divide-y divide-slate-200 max-h-[420px] overflow-y-auto">
+                @foreach($recentNotifications as $notif)
+                <li class="{{ $notif->read_at ? 'bg-white' : 'bg-sky-50/70' }}">
+                    <a href="{{ route('notifications.open', $notif) }}" class="block px-4 py-3 hover:bg-slate-50 transition-colors">
+                        <p class="text-sm font-medium {{ $notif->read_at ? 'text-slate-600' : 'text-slate-900' }}">{{ $notif->title }}</p>
+                        @if($notif->message)
+                            <p class="mt-0.5 text-xs text-slate-500 line-clamp-2">{{ $notif->message }}</p>
+                        @endif
+                        <p class="mt-1 text-xs text-slate-400">{{ format_in_app_tz($notif->notify_at, 'M j, Y g:i A') }}</p>
+                    </a>
+                </li>
+                @endforeach
+            </ul>
+            <div class="border-t border-slate-200 bg-slate-50 px-4 py-2">
+                <a href="{{ route('notifications.index') }}" class="text-sm font-medium text-sky-600 hover:text-sky-500">View all notifications &rarr;</a>
+            </div>
         </div>
+        @else
+        <p class="mt-4 rounded-xl bg-white p-6 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">No notifications yet.</p>
+        @endif
+    </div>
+    <div>
+        <h2 class="text-lg font-semibold text-slate-900">Top 10 agents leaderboard</h2>
+        <p class="mt-1 text-sm text-slate-600">This month — ranked by approved, then revenue.</p>
+        @if($topAgentsLeaderboard->isNotEmpty())
+        <div class="mt-4 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+            <div class="overflow-x-auto max-h-[420px] overflow-y-auto">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50 sticky top-0">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-600">#</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Agent</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Approved</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Total</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Revenue</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Conv.%</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200 bg-white">
+                        @foreach($topAgentsLeaderboard as $index => $row)
+                        <tr>
+                            <td class="whitespace-nowrap px-3 py-2 text-xs font-semibold text-slate-700">#{{ $index + 1 }}</td>
+                            <td class="whitespace-nowrap px-3 py-2 text-sm font-medium text-slate-900">{{ $row['agent']->displayName() }}</td>
+                            <td class="whitespace-nowrap px-3 py-2 text-xs text-slate-700">{{ $row['approved'] }}</td>
+                            <td class="whitespace-nowrap px-3 py-2 text-xs text-slate-700">{{ $row['total'] }}</td>
+                            <td class="whitespace-nowrap px-3 py-2 text-xs font-medium text-emerald-700">${{ number_format($row['revenue'], 2) }}</td>
+                            <td class="whitespace-nowrap px-3 py-2 text-xs text-slate-700">{{ number_format($row['conversion_rate'], 2) }}%</td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            <div class="border-t border-slate-200 bg-slate-50 px-4 py-2">
+                <a href="{{ route('reports.sales') }}" class="text-sm font-medium text-sky-600 hover:text-sky-500">Full sales report &rarr;</a>
+            </div>
+        </div>
+        @else
+        <p class="mt-4 rounded-xl bg-white p-6 text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">No leaderboard data for this month yet.</p>
+        @endif
     </div>
 </div>
 @endif
