@@ -357,6 +357,19 @@ class LeadController extends Controller
             return redirect()->route('agent.queue')->with('error', 'That lead is no longer available.');
         }
 
+        $todayUtc = \Carbon\Carbon::now('UTC')->format('Y-m-d');
+        $storedDate = $request->session()->get('agent_skip_date_utc');
+        if ($storedDate !== null && $storedDate !== $todayUtc) {
+            $request->session()->forget([
+                'agent_skip_list', 'agent_sequence', 'agent_last_shown_lead_id',
+                'agent_last_shown_sequence', 'agent_skip_offset',
+            ]);
+            $request->session()->put('agent_skip_date_utc', $todayUtc);
+            $request->session()->put('agent_sequence', 1);
+            $request->session()->put('agent_last_shown_sequence', 1);
+        }
+        $request->session()->put('agent_skip_date_utc', $todayUtc);
+
         $offset = (int) $request->session()->get('agent_skip_offset', 0);
         $request->session()->put('agent_skip_offset', $offset + 1);
 
@@ -1939,6 +1952,16 @@ class LeadController extends Controller
             return null;
         }
 
+        $todayUtc = \Carbon\Carbon::now('UTC')->format('Y-m-d');
+        $storedDate = $request->session()->get('agent_skip_date_utc');
+        if ($storedDate !== null && $storedDate !== $todayUtc) {
+            $request->session()->forget([
+                'agent_skip_list', 'agent_sequence', 'agent_last_shown_lead_id',
+                'agent_last_shown_sequence', 'agent_skip_offset',
+            ]);
+        }
+        $request->session()->put('agent_skip_date_utc', $todayUtc);
+
         $nReshow = max(1, min(5000, (int) (Setting::get('round_robin_leads_before_skipped_reshown', '5') ?? 5)));
         $totalCount = count($leadIds);
 
@@ -1948,6 +1971,9 @@ class LeadController extends Controller
 
         $skipList = $request->session()->get('agent_skip_list', []);
         $skipList = is_array($skipList) ? $skipList : [];
+        $leadIdsSet = array_flip($leadIds);
+        $skipList = array_intersect_key($skipList, $leadIdsSet);
+        $request->session()->put('agent_skip_list', $skipList);
 
         if ($totalCount < $nReshow) {
             $availableLeadIds = array_values(array_filter($leadIds, fn ($id) => ! isset($skipList[$id])));
