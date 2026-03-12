@@ -64,6 +64,7 @@ class SettingController extends Controller
     public function index(): View
     {
         $agentHistoryLimit = Setting::get('agent_history_limit', '50');
+        $roundRobinLeadsBeforeSkippedReshown = max(1, min(5000, (int) (Setting::get('round_robin_leads_before_skipped_reshown', '5') ?? 5)));
         $holdingStatusSlugs = Setting::getJsonArray('holding_status_slugs', self::DEFAULT_HOLDING_SLUGS);
         $crSoundNotificationsEnabled = Setting::get('cr_sound_notifications_enabled', '1') === '1';
         $callbackReminderMinutes = (int) (Setting::get('callback_reminder_minutes', '15') ?? '15');
@@ -75,6 +76,7 @@ class SettingController extends Controller
 
         return view('settings.index', [
             'agentHistoryLimit' => $agentHistoryLimit,
+            'roundRobinLeadsBeforeSkippedReshown' => $roundRobinLeadsBeforeSkippedReshown,
             'holdingStatusSlugs' => $holdingStatusSlugs,
             'crSoundNotificationsEnabled' => $crSoundNotificationsEnabled,
             'callbackReminderMinutes' => $callbackReminderMinutes,
@@ -90,6 +92,7 @@ class SettingController extends Controller
     {
         $validated = $request->validate([
             'agent_history_limit' => ['required', 'integer', 'min:1', 'max:500'],
+            'round_robin_leads_before_skipped_reshown' => ['required', 'integer', 'min:1', 'max:5000'],
             'holding_status_slugs' => ['nullable', 'array'],
             'holding_status_slugs.*' => ['string', 'exists:statuses,slug'],
             'cr_sound_notifications_enabled' => ['required', 'boolean'],
@@ -100,6 +103,7 @@ class SettingController extends Controller
         ]);
 
         Setting::put('agent_history_limit', (string) $validated['agent_history_limit']);
+        Setting::put('round_robin_leads_before_skipped_reshown', (string) max(1, min(5000, $validated['round_robin_leads_before_skipped_reshown'])));
 
         $slugs = array_values($validated['holding_status_slugs'] ?? []);
         Setting::putJsonArray('holding_status_slugs', $slugs);

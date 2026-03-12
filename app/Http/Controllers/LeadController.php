@@ -360,6 +360,13 @@ class LeadController extends Controller
         $offset = (int) $request->session()->get('agent_skip_offset', 0);
         $request->session()->put('agent_skip_offset', $offset + 1);
 
+        $lastSequence = (int) $request->session()->get('agent_last_shown_sequence', 0);
+        $skipList = $request->session()->get('agent_skip_list', []);
+        $skipList = is_array($skipList) ? $skipList : [];
+        $skipList[$request->integer('lead_id')] = $lastSequence;
+        $request->session()->put('agent_skip_list', $skipList);
+        $request->session()->forget(['agent_last_shown_lead_id', 'agent_last_shown_sequence']);
+
         return redirect()->route('agent.queue');
     }
 
@@ -411,8 +418,12 @@ class LeadController extends Controller
             return redirect()->route('agent.queue')->with('error', $e->getMessage());
         }
 
-        $request->session()->forget('agent_skipped_lead_ids');
-        $request->session()->forget('agent_skip_offset');
+        $request->session()->forget(['agent_skipped_lead_ids', 'agent_skip_offset', 'agent_last_shown_lead_id', 'agent_last_shown_sequence']);
+        $skipList = $request->session()->get('agent_skip_list', []);
+        if (is_array($skipList)) {
+            unset($skipList[$assignedLead->id]);
+            $request->session()->put('agent_skip_list', $skipList);
+        }
 
         return redirect()->route('leads.edit', $assignedLead)->with('success', 'Lead assigned to you.');
     }
@@ -1907,8 +1918,8 @@ class LeadController extends Controller
 
     /**
      * Next lead for the current agent using round-robin: one global list (same for all agents),
-     * lead at index i is assigned to agent (i % numAgents). Skip advances this agent's slot
-     * by numAgents so the same lead is never shown to two agents.
+     * lead at index i is assigned to agent (i % numAgents). Skip advances this agent's slot.
+     * Skipped leads are hidden until N more leads have been shown (N = setting round_robin_leads_before_skipped_reshown).
      */
     private function nextAvailableLead(Request $request): ?Lead
     {
@@ -1928,27 +1939,70 @@ class LeadController extends Controller
             return null;
         }
 
+        $nReshow = max(1, min(5000, (int) (Setting::get('round_robin_leads_before_skipped_reshown', '5') ?? 5)));
+        $totalCount = count($leadIds);
+
+        $sequence = (int) $request->session()->get('agent_sequence', 0);
+        $sequence++;
+        $request->session()->put('agent_sequence', $sequence);
+
+        $skipList = $request->session()->get('agent_skip_list', []);
+        $skipList = is_array($skipList) ? $skipList : [];
+
+        if ($totalCount < $nReshow) {
+            $availableLeadIds = array_values(array_filter($leadIds, fn ($id) => ! isset($skipList[$id])));
+            $skippedIds = array_values(array_filter($leadIds, fn ($id) => isset($skipList[$id])));
+            $availableLeadIds = array_merge($availableLeadIds, $skippedIds);
+        } else {
+            foreach ($skipList as $leadId => $skipSeq) {
+                if ($sequence - (int) $skipSeq >= $nReshow) {
+                    unset($skipList[$leadId]);
+                }
+            }
+            $request->session()->put('agent_skip_list', $skipList);
+
+            $availableLeadIds = array_values(array_filter($leadIds, function ($id) use ($skipList, $sequence, $nReshow) {
+                if (! isset($skipList[$id])) {
+                    return true;
+                }
+                return $sequence - (int) $skipList[$id] >= $nReshow;
+            }));
+        }
+
+        if ($availableLeadIds === []) {
+            $request->session()->forget('agent_skip_offset');
+            return null;
+        }
+
         $agentIds = $this->queueAgentIds();
         if ($agentIds === []) {
-            return Lead::with(['status', 'phones'])->find($leadIds[0]);
+            $leadId = $availableLeadIds[0];
+            $request->session()->put('agent_last_shown_lead_id', $leadId);
+            $request->session()->put('agent_last_shown_sequence', $sequence);
+            return Lead::with(['status', 'phones'])->find($leadId);
         }
 
         $currentAgentId = auth()->id();
         $myIndex = array_search((int) $currentAgentId, $agentIds, true);
         if ($myIndex === false) {
-            return Lead::with(['status', 'phones'])->find($leadIds[0]);
+            $leadId = $availableLeadIds[0];
+            $request->session()->put('agent_last_shown_lead_id', $leadId);
+            $request->session()->put('agent_last_shown_sequence', $sequence);
+            return Lead::with(['status', 'phones'])->find($leadId);
         }
 
         $numAgents = count($agentIds);
         $skipOffset = (int) $request->session()->get('agent_skip_offset', 0);
         $positionForMe = $myIndex + ($skipOffset * $numAgents);
 
-        if ($positionForMe >= count($leadIds)) {
+        if ($positionForMe >= count($availableLeadIds)) {
             $request->session()->forget('agent_skip_offset');
             return null;
         }
 
-        $leadId = $leadIds[$positionForMe];
+        $leadId = $availableLeadIds[$positionForMe];
+        $request->session()->put('agent_last_shown_lead_id', $leadId);
+        $request->session()->put('agent_last_shown_sequence', $sequence);
 
         return Lead::with(['status', 'phones'])->find($leadId);
     }
