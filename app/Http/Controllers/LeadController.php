@@ -89,6 +89,10 @@ class LeadController extends Controller
             $query->where('status_id', $request->status);
         }
 
+        if ($isAdmin) {
+            $query->where('status_id', '!=', $newStatusId);
+        }
+
         if ($isAdmin && $request->has('assigned_to')) {
             if ($request->assigned_to === '') {
                 $query->whereNull('assigned_to');
@@ -142,8 +146,7 @@ class LeadController extends Controller
             });
         }
 
-        if ($isAdmin && ! $request->filled('status')) {
-            $query->where('status_id', '!=', $newStatusId);
+        if ($isAdmin) {
             $statusesQuery->where('slug', '!=', self::ACTIVE_STATUS_SLUG);
         }
 
@@ -250,14 +253,10 @@ class LeadController extends Controller
         return response()->json(['count' => $count]);
     }
 
-    /** Leads that have status "new" or are not assigned to any user. */
+    /** Leads that have status "new" only (used for New Leads page and count). */
     private function newLeadsQuery(): Builder
     {
-        $newStatusId = $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG);
-
-        return Lead::query()->where(function (Builder $q) use ($newStatusId): void {
-            $q->where('status_id', $newStatusId)->orWhereNull('assigned_to');
-        });
+        return Lead::query()->newStatusOnly();
     }
 
     private function isLeadNewOrUnassigned(Lead $lead): bool

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -87,5 +88,15 @@ class Lead extends Model
     public function fullName(): string
     {
         return trim("{$this->first_name} {$this->last_name}");
+    }
+
+    /** Scope: only leads with status "new" (used for New Leads page and all new-leads counts). */
+    public function scopeNewStatusOnly(Builder $query): Builder
+    {
+        $newStatusId = Status::where('slug', 'new')->value('id');
+
+        return $newStatusId !== null
+            ? $query->where('status_id', $newStatusId)
+            : $query->whereRaw('1=0');
     }
 }

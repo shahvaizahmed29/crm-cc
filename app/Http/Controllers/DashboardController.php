@@ -71,11 +71,7 @@ class DashboardController extends Controller
 
         $newLeadsCount = null;
         if ($user->isAdmin()) {
-            $newLeadsCount = Lead::query()
-                ->where(function ($q) use ($newStatusId): void {
-                    $q->where('status_id', $newStatusId)->orWhereNull('assigned_to');
-                })
-                ->count();
+            $newLeadsCount = Lead::query()->newStatusOnly()->count();
         }
 
         $leadsCountByStatus = null;
