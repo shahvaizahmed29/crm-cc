@@ -5,7 +5,7 @@
 @section('content')
 <x-page-header title="Import Leads (CSV/XLSX)" :back-url="route('leads.index')" back-text="Back to list" />
 
-<p class="mt-1 text-sm text-slate-600">Upload a CSV/XLSX file. The first row should be headers. Supported template columns: <strong>F name</strong>, <strong>M name</strong>, <strong>L name</strong>, <strong>Address</strong>, <strong>city</strong>, <strong>state</strong>, <strong>zip</strong>, <strong>ssn</strong>, <strong>Dob</strong>, <strong>Debt</strong>, <strong>Fees</strong>, <strong>phone1</strong>, <strong>phone2</strong>, <strong>phone3</strong>.</p>
+<p class="mt-1 text-sm text-slate-600">Upload a CSV/XLSX file. The first row should be headers. Supported template columns: <strong>F name</strong>, <strong>M name</strong>, <strong>L name</strong>, <strong>Address</strong>, <strong>city</strong>, <strong>state</strong>, <strong>zip</strong>, <strong>ssn</strong>, <strong>Dob</strong>, <strong>Debt</strong>, <strong>Fees</strong>, <strong>phone1</strong>–<strong>phone5</strong> (up to five numbers per lead).</p>
 
 @if(session('import_errors'))
     <div class="mt-4 rounded-md bg-amber-50 p-4 text-sm text-amber-800 border border-amber-200">
@@ -35,9 +35,16 @@
     </div>
 </form>
 
-<div class="mt-8 rounded-xl bg-slate-50 p-4 text-sm text-slate-700 ring-1 ring-slate-200">
-    <p class="font-medium">Example header row (CSV/XLSX):</p>
-    <code class="mt-1 block break-all">F name,M name,L name,Address,city,state,zip,ssn,Dob,Debt,Fees,phone1,phone2,phone3</code>
+<div class="mt-8 space-y-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-700 ring-1 ring-slate-200">
+    <div>
+        <p class="font-medium">Example header row</p>
+        <code class="mt-1 block break-all rounded border border-slate-200 bg-white px-2 py-2 text-xs">F name,M name,L name,Address,city,state,zip,ssn,Dob,Debt,Fees,phone1,phone2,phone3,phone4,phone5</code>
+    </div>
+    <div>
+        <p class="font-medium">Example data row (phone4 and phone5 optional)</p>
+        <code class="mt-1 block break-all rounded border border-slate-200 bg-white px-2 py-2 text-xs">John,A,Doe,123 Main St,Dallas,TX,75001,111-22-3333,1988-04-12,12000.50,450.00,5551234567,5551234568,5551234569,,</code>
+    </div>
+    <p class="text-xs text-slate-500">Use <a href="{{ route('leads.import.sample') }}" class="font-medium text-sky-600 hover:text-sky-500">Download Sample CSV</a> for a ready-to-edit file with these columns.</p>
 </div>
 
 <div class="mt-8 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">

@@ -34,6 +34,7 @@ Route::middleware('auth')->group(function (): void {
         Route::post('credit-reports/{creditReport}/result', [CreditReportController::class, 'uploadResult'])->name('credit-reports.result');
         Route::delete('credit-reports/{creditReport}', [CreditReportController::class, 'destroy'])->name('credit-reports.destroy');
         Route::get('leads/new', [LeadController::class, 'adminNewLeads'])->name('leads.new.index');
+        Route::post('leads/new/bulk-delete', [LeadController::class, 'bulkDestroyNewLeads'])->name('leads.new.bulk-destroy');
         Route::get('leads/new-count', [LeadController::class, 'newLeadsCount'])->name('leads.new.count');
         Route::get('settings', [SettingController::class, 'index'])->name('settings.index');
         Route::put('settings', [SettingController::class, 'update'])->name('settings.update');

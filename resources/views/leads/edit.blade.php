@@ -112,38 +112,37 @@
                 <!-- Middle Column - Contact Information -->
                 <div class="space-y-3 xl:col-span-1">
                     @php
-                    $phoneRows = old('phones', $lead->phones->pluck('phone')->values()->all());
-                    $emailRows = old('emails', $lead->emails->pluck('email')->values()->all());
-                    if (empty($phoneRows)) {
-                    $phoneRows = [''];
+                    $rawPhones = old('phones');
+                    if (is_array($rawPhones)) {
+                        $phoneRows = array_values($rawPhones);
+                    } else {
+                        $phoneRows = $lead->phones->pluck('phone')->values()->all();
                     }
+                    while (count($phoneRows) < 5) {
+                        $phoneRows[] = '';
+                    }
+                    $phoneRows = array_slice($phoneRows, 0, 5);
+                    $emailRows = old('emails', $lead->emails->pluck('email')->values()->all());
                     if (empty($emailRows)) {
                     $emailRows = [''];
                     }
                     @endphp
         
-                    <div x-data='@json(["phones" => array_values($phoneRows), "emails" => array_values($emailRows)])'>
+                    <div>
                         <h2 class="mb-4 text-base font-semibold text-slate-900">Contact Information</h2>
         
-                        <!-- Phone Numbers -->
-                        <div class="mb-6">
-                            <div class="flex items-center justify-between mb-3">
-                                <h3 class="text-sm font-medium text-slate-700">Phone Numbers</h3>
-                                <button type="button" @click="phones.push('')" class="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-500">Add Phone</button>
+                        <div class="mb-6 space-y-2">
+                            <h3 class="text-sm font-medium text-slate-700">Phone numbers</h3>
+                            <p class="text-xs text-slate-500">Up to five numbers.</p>
+                            @for($i = 0; $i < 5; $i++)
+                            <div>
+                                <label for="edit_phone_{{ $i }}" class="mb-0.5 block text-xs text-slate-600">Phone {{ $i + 1 }}</label>
+                                <input type="text" name="phones[{{ $i }}]" id="edit_phone_{{ $i }}" value="{{ $phoneRows[$i] }}" placeholder="Phone number" class="block w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm shadow-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500">
                             </div>
-                            <p class="mb-2 text-xs text-slate-500">Use one field per number.</p>
-                            <div class="space-y-2">
-                                <template x-for="(phone, index) in phones" :key="'phone-' + index">
-                                    <div class="flex items-center gap-2">
-                                        <input type="text" :name="'phones[' + index + ']'" x-model="phones[index]" placeholder="Phone number" class="block w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm shadow-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500">
-                                        <button type="button" x-show="phones.length > 1" @click="phones.splice(index, 1)" class="rounded-md bg-red-50 px-2 py-2 text-xs font-semibold text-red-700 hover:bg-red-100">Remove</button>
-                                    </div>
-                                </template>
-                            </div>
+                            @endfor
                         </div>
         
-                        <!-- Email Addresses -->
-                        <div>
+                        <div x-data='@json(["emails" => array_values($emailRows)])'>
                             <div class="flex items-center justify-between mb-3">
                                 <h3 class="text-sm font-medium text-slate-700">Email Addresses</h3>
                                 <button type="button" @click="emails.push('')" class="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-500">Add Email</button>

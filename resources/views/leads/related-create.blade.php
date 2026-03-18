@@ -49,30 +49,27 @@
     </div>
 
     @php
-        $phoneRows = old('phones', ['']);
-        $emailRows = old('emails', ['']);
-        if (empty($phoneRows)) {
-            $phoneRows = [''];
+        $rawPhones = old('phones');
+        $phoneRows = [];
+        for ($i = 0; $i < 5; $i++) {
+            $phoneRows[] = is_array($rawPhones) ? (string) ($rawPhones[$i] ?? '') : '';
         }
+        $emailRows = old('emails', ['']);
         if (empty($emailRows)) {
             $emailRows = [''];
         }
     @endphp
-    <div class="space-y-4" x-data='@json(["phones" => array_values($phoneRows), "emails" => array_values($emailRows)])'>
+    <div class="space-y-4">
         <div>
-            <div class="flex items-center justify-between">
-                <h2 class="text-lg font-medium text-slate-900">Phone Numbers</h2>
-                <button type="button" @click="phones.push('')" class="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-500">Add Phone</button>
-            </div>
-            <p class="mt-1 text-sm text-slate-500">Use one field per number.</p>
-            <template x-for="(phone, index) in phones" :key="'phone-' + index">
-                <div class="mt-2 flex items-center gap-2">
-                    <input type="text" :name="'phones[' + index + ']'" x-model="phones[index]" placeholder="Phone number" class="block w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm shadow-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500">
-                    <button type="button" x-show="phones.length > 1" @click="phones.splice(index, 1)" class="rounded-md bg-red-50 px-2 py-2 text-xs font-semibold text-red-700 hover:bg-red-100">Remove</button>
-                </div>
-            </template>
+            <h2 class="text-lg font-medium text-slate-900">Phone numbers</h2>
+            <p class="mt-1 text-sm text-slate-500">Up to five numbers.</p>
+            @for($i = 0; $i < 5; $i++)
+            <x-form-field :label="'Phone '.($i + 1)" :for="'rel_phone_'.$i">
+                <x-input name="phones[{{ $i }}]" :id="'rel_phone_'.$i" type="text" :value="$phoneRows[$i]" placeholder="Phone number" />
+            </x-form-field>
+            @endfor
         </div>
-        <div>
+        <div x-data='@json(["emails" => array_values($emailRows)])'>
             <div class="flex items-center justify-between">
                 <h2 class="text-lg font-medium text-slate-900">Email Addresses</h2>
                 <button type="button" @click="emails.push('')" class="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-500">Add Email</button>

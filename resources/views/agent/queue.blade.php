@@ -69,20 +69,16 @@
                 <dt class="text-xs text-slate-500">Address</dt>
                 <dd class="text-sm text-slate-900">{{ $candidateLead->address ?: '—' }}</dd>
             </div>
-            <div>
-                <dt class="text-xs text-slate-500">Phone</dt>
-                <dd class="mt-0.5">
-                    <span class="inline-flex items-center rounded-md bg-emerald-100 px-2.5 py-1 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-200">
-                        {{ $candidateLead->phones->first()?->phone ?? '—' }}
+            <div class="sm:col-span-2">
+                <dt class="text-xs text-slate-500">Phones (up to 5)</dt>
+                <dd class="mt-1 flex flex-wrap gap-1.5">
+                    @php $tones = ['bg-emerald-100 text-emerald-800 ring-emerald-200', 'bg-sky-100 text-sky-800 ring-sky-200', 'bg-violet-100 text-violet-800 ring-violet-200', 'bg-amber-100 text-amber-800 ring-amber-200', 'bg-rose-100 text-rose-800 ring-rose-200']; @endphp
+                    @for($idx = 0; $idx < 5; $idx++)
+                    @php $phone = $candidateLead->phones->values()->get($idx); @endphp
+                    <span class="inline-flex max-w-full items-center truncate rounded px-2 py-0.5 text-xs font-semibold ring-1 {{ $tones[$idx] }}">
+                        <span class="mr-0.5 shrink-0 opacity-70">{{ $idx + 1 }}.</span><span class="truncate">{{ $phone?->phone ?? '—' }}</span>
                     </span>
-                </dd>
-            </div>
-            <div>
-                <dt class="text-xs text-slate-500">Alt Phone</dt>
-                <dd class="mt-0.5">
-                    <span class="inline-flex items-center rounded-md bg-sky-100 px-2.5 py-1 text-sm font-semibold text-sky-800 ring-1 ring-sky-200">
-                        {{ $candidateLead->phones->skip(1)->first()?->phone ?? '—' }}
-                    </span>
+                    @endfor
                 </dd>
             </div>
         </dl>

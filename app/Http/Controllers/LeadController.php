@@ -253,6 +253,37 @@ class LeadController extends Controller
         return response()->json(['count' => $count]);
     }
 
+    /** Bulk soft-delete selected leads that are still in New status (New Leads page only). */
+    public function bulkDestroyNewLeads(Request $request): RedirectResponse
+    {
+        if (! auth()->user()->isAdmin()) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'lead_ids' => ['required', 'array', 'min:1', 'max:500'],
+            'lead_ids.*' => ['integer', 'min:1'],
+        ]);
+
+        $ids = array_values(array_unique(array_map('intval', $validated['lead_ids'])));
+
+        $deleted = Lead::query()
+            ->newStatusOnly()
+            ->whereIn('id', $ids)
+            ->delete();
+
+        $skipped = count($ids) - (int) $deleted;
+
+        $message = $deleted > 0
+            ? "Deleted {$deleted} lead(s)."
+            : 'No matching leads were deleted.';
+        if ($skipped > 0) {
+            $message .= " {$skipped} selected lead(s) were skipped (not in New status).";
+        }
+
+        return redirect()->route('leads.new.index')->with('success', $message);
+    }
+
     /** Leads that have status "new" only (used for New Leads page and count). */
     private function newLeadsQuery(): Builder
     {
@@ -484,6 +515,8 @@ class LeadController extends Controller
                 'phone1',
                 'phone2',
                 'phone3',
+                'phone4',
+                'phone5',
             ]);
             fputcsv($out, [
                 'John',
@@ -499,6 +532,8 @@ class LeadController extends Controller
                 '450.00',
                 '5551234567',
                 '5551234568',
+                '5551234569',
+                '',
                 '',
             ]);
             fclose($out);
@@ -600,7 +635,7 @@ class LeadController extends Controller
 
             $address = $this->buildAddressFromCsv($data);
             $dateOfBirth = $this->parseDateOfBirthFromCsv($this->getCsvColumn($data, ['Dob', 'date_of_birth', 'dob', 'date of birth']));
-            $csvPhones = $this->normalizeLines($this->csvPhonesFromData($data));
+            $csvPhones = array_slice($this->normalizeLines($this->csvPhonesFromData($data)), 0, 5);
             $csvEmails = $this->normalizeLines($this->csvEmailsFromData($data));
 
             try {
@@ -727,9 +762,12 @@ class LeadController extends Controller
             $out = fopen('php://output', 'w');
             fputcsv($out, [
                 'first_name', 'last_name', 'status', 'address', 'date_of_birth', 'mothers_maiden_name',
-                'ssn', 'approx_debt', 'fees', 'details', 'is_dnc', 'phone', 'email', 'assigned_to',
+                'ssn', 'approx_debt', 'fees', 'details', 'is_dnc',
+                'phone1', 'phone2', 'phone3', 'phone4', 'phone5',
+                'email', 'assigned_to',
             ]);
             foreach ($leads as $lead) {
+                $ph = $lead->phones->values();
                 fputcsv($out, [
                     $lead->first_name,
                     $lead->last_name,
@@ -742,7 +780,11 @@ class LeadController extends Controller
                     $lead->fees ?? '',
                     $lead->details ?? '',
                     $lead->is_dnc ? '1' : '0',
-                    $lead->phones->first()?->phone ?? '',
+                    $ph->get(0)?->phone ?? '',
+                    $ph->get(1)?->phone ?? '',
+                    $ph->get(2)?->phone ?? '',
+                    $ph->get(3)?->phone ?? '',
+                    $ph->get(4)?->phone ?? '',
                     $lead->emails->first()?->email ?? '',
                     $lead->assignedTo?->username ?? $lead->assignedTo?->email ?? '',
                 ]);
@@ -868,7 +910,7 @@ class LeadController extends Controller
             'assigned_to' => auth()->user()->isAgent() ? auth()->id() : null,
         ]);
 
-        foreach ($this->normalizeLines($validated['phones'] ?? []) as $phone) {
+        foreach ($this->normalizedPhonesFromRequest($validated['phones'] ?? null) as $phone) {
             $lead->phones()->create(['phone' => $phone]);
         }
         foreach ($this->normalizeLines($validated['emails'] ?? []) as $email) {
@@ -933,7 +975,7 @@ class LeadController extends Controller
             'assigned_to' => $assignedTo,
         ]);
 
-        foreach ($this->normalizeLines($validated['phones'] ?? []) as $phone) {
+        foreach ($this->normalizedPhonesFromRequest($validated['phones'] ?? null) as $phone) {
             $relatedLead->phones()->create(['phone' => $phone]);
         }
         foreach ($this->normalizeLines($validated['emails'] ?? []) as $email) {
@@ -1153,7 +1195,7 @@ class LeadController extends Controller
         ]);
 
         $lead->phones()->delete();
-        foreach ($this->normalizeLines($validated['phones'] ?? []) as $phone) {
+        foreach ($this->normalizedPhonesFromRequest($validated['phones'] ?? null) as $phone) {
             $lead->phones()->create(['phone' => $phone]);
         }
         $lead->emails()->delete();
@@ -1214,6 +1256,12 @@ class LeadController extends Controller
             }
         }
         return $out;
+    }
+
+    /** @return array<int, string> At most 5 phone numbers from form input. */
+    private function normalizedPhonesFromRequest(?array $phones): array
+    {
+        return array_slice($this->normalizeLines($phones ?? []), 0, 5);
     }
 
     /**
@@ -1329,8 +1377,10 @@ class LeadController extends Controller
 
         $lines = [];
         $lines[] = 'Name : ' . trim($lead->first_name . ' ' . $lead->last_name);
-        $lines[] = 'Phone : ' . ($phones->get(0) ?? '');
-        $lines[] = 'Alt Phone : ' . ($phones->get(1) ?? '');
+        $phoneLabels = ['Phone', 'Alt Phone', 'Phone 3', 'Phone 4', 'Phone 5'];
+        for ($i = 0; $i < 5; $i++) {
+            $lines[] = $phoneLabels[$i] . ' : ' . ($phones->get($i) ?? '');
+        }
         $lines[] = 'Add : ' . ((string) ($lead->address ?? ''));
         $lines[] = 'Dob : ' . ($lead->date_of_birth?->format('m/d/Y') ?? '');
         $lines[] = 'Mmn : ' . ((string) ($lead->mothers_maiden_name ?? ''));
@@ -1560,14 +1610,18 @@ class LeadController extends Controller
         return $address . ', ' . $location;
     }
 
-    /** @return array<int, string> */
+    /** @return array<int, string> Up to 5 phone numbers from CSV columns. */
     private function csvPhonesFromData(array $data): array
     {
-        return array_values(array_filter([
+        $phones = array_values(array_filter([
             $this->getCsvColumn($data, ['phone', 'phones', 'phone1']),
             $this->getCsvColumn($data, ['phone2']),
             $this->getCsvColumn($data, ['phone3']),
+            $this->getCsvColumn($data, ['phone4']),
+            $this->getCsvColumn($data, ['phone5']),
         ], fn ($value) => $value !== ''));
+
+        return array_slice($phones, 0, 5);
     }
 
     /** @return array<int, string> */
@@ -1829,7 +1883,7 @@ class LeadController extends Controller
             'callback_date' => ['nullable', 'date'],
             'callback_time' => ['nullable', 'date_format:H:i'],
             'callback_at_utc' => ['nullable', 'string', 'max:64'],
-            'phones' => ['nullable', 'array'],
+            'phones' => ['nullable', 'array', 'max:5'],
             'phones.*' => ['nullable', 'string', 'max:50'],
             'emails' => ['nullable', 'array'],
             'emails.*' => ['nullable', 'string', 'max:255'],

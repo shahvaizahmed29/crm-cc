@@ -14,7 +14,7 @@
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
     <div>
         <h1 class="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">New Leads</h1>
-        <p class="mt-1 text-sm text-slate-600">Leads with status New or not assigned to any user.</p>
+        <p class="mt-1 text-sm text-slate-600">Leads with status New only.</p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
         <a href="{{ route('leads.import.sample') }}"
@@ -83,10 +83,24 @@
 </form>
 
 <div class="mt-6 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+    @if($leads->isNotEmpty())
+    <form method="POST" action="{{ route('leads.new.bulk-destroy') }}" id="new-leads-bulk-delete-form" class="border-b border-slate-200 bg-slate-50 px-4 py-3 flex flex-wrap items-center gap-3" onsubmit="return confirm('Soft-delete the selected new leads? This cannot be undone from the UI.');">
+        @csrf
+        <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50" disabled id="new-leads-bulk-delete-btn">
+            Delete selected
+        </button>
+        <span class="text-xs text-slate-500" id="new-leads-bulk-count">0 selected</span>
+    </form>
+    @endif
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-200">
             <thead class="bg-slate-50">
                 <tr>
+                    @if($leads->isNotEmpty())
+                    <th scope="col" class="w-10 px-3 py-3">
+                        <input type="checkbox" id="new-leads-select-all" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" title="Select all on this page" aria-label="Select all on this page">
+                    </th>
+                    @endif
                     <th scope="col"
                         class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Name
                     </th>
@@ -138,6 +152,11 @@
             <tbody class="divide-y divide-slate-200 bg-white">
                 @forelse($leads as $lead)
                 <tr>
+                    @if($leads->isNotEmpty())
+                    <td class="whitespace-nowrap px-3 py-3">
+                        <input type="checkbox" name="lead_ids[]" value="{{ $lead->id }}" form="new-leads-bulk-delete-form" class="new-lead-row-cb h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" aria-label="Select {{ $lead->fullName() }}">
+                    </td>
+                    @endif
                     <td class="whitespace-nowrap px-4 py-3">
                         <a href="{{ route('leads.show', $lead) }}"
                             class="font-medium text-sky-600 hover:text-sky-500">{{ $lead->fullName() }}</a>
@@ -262,6 +281,32 @@
     @endif
 </div>
 <script>
+    (() => {
+        const form = document.getElementById('new-leads-bulk-delete-form');
+        const selectAll = document.getElementById('new-leads-select-all');
+        const btn = document.getElementById('new-leads-bulk-delete-btn');
+        const countEl = document.getElementById('new-leads-bulk-count');
+        function updateBulkUi() {
+            const cbs = document.querySelectorAll('.new-lead-row-cb:checked');
+            const n = cbs.length;
+            if (btn) btn.disabled = n === 0;
+            if (countEl) countEl.textContent = n + ' selected';
+            if (selectAll) {
+                const all = document.querySelectorAll('.new-lead-row-cb');
+                selectAll.checked = all.length > 0 && n === all.length;
+                selectAll.indeterminate = n > 0 && n < all.length;
+            }
+        }
+        selectAll?.addEventListener('change', () => {
+            document.querySelectorAll('.new-lead-row-cb').forEach(cb => { cb.checked = selectAll.checked; });
+            updateBulkUi();
+        });
+        document.querySelectorAll('.new-lead-row-cb').forEach(cb => cb.addEventListener('change', updateBulkUi));
+        form?.addEventListener('submit', (e) => {
+            if (!document.querySelectorAll('.new-lead-row-cb:checked').length) e.preventDefault();
+        });
+        updateBulkUi();
+    })();
     (() => {
         function openModal(id) {
             const root = document.getElementById(id);
