@@ -56,7 +56,7 @@
 
     <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 class="text-base font-semibold text-slate-900">Queue lead order</h2>
-        <p class="mt-1 text-sm text-slate-500">Controls how unassigned new leads are ordered in round-robin by <code>created_at</code> and tie-breaker <code>id</code>.</p>
+        <p class="mt-1 text-sm text-slate-500">Controls how unassigned new leads are ordered in round-robin by <code>id</code> (oldest/newest).</p>
         <div class="mt-3">
             <label for="queue_lead_order_direction" class="sr-only">Queue lead order direction</label>
             <select
