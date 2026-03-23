@@ -35,16 +35,16 @@
 
     <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 class="text-base font-semibold text-slate-900">Round-robin: skipped leads</h2>
-        <p class="mt-1 text-sm text-slate-500">After how many leads (shown to the agent) a skipped lead may appear again. If the total new leads in the pool is less than this number, skipped leads are moved to the end of the queue for that agent.</p>
+        <p class="mt-1 text-sm text-slate-500">Skipped leads are hidden globally from all agents until at least this many other leads are shown. If all non-skipped leads are exhausted, skipped leads are shown again.</p>
         <div class="mt-3">
             <label for="round_robin_leads_before_skipped_reshown" class="sr-only">Leads before skipped lead is shown again</label>
             <input
                 type="number"
                 name="round_robin_leads_before_skipped_reshown"
                 id="round_robin_leads_before_skipped_reshown"
-                min="1"
-                max="5000"
-                value="{{ old('round_robin_leads_before_skipped_reshown', $roundRobinLeadsBeforeSkippedReshown ?? 5) }}"
+                min="2000"
+                max="50000"
+                value="{{ old('round_robin_leads_before_skipped_reshown', $roundRobinLeadsBeforeSkippedReshown ?? 2000) }}"
                 class="rounded-md border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500"
                 required
             >

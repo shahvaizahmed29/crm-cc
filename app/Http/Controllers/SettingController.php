@@ -13,6 +13,9 @@ use Illuminate\View\View;
 
 class SettingController extends Controller
 {
+    private const MIN_ROUND_ROBIN_RESHOW_LEADS = 2000;
+    private const MAX_ROUND_ROBIN_RESHOW_LEADS = 50000;
+
     private const DEFAULT_HOLDING_SLUGS = [
         'need-to-reconnect',
         'callback',
@@ -64,7 +67,13 @@ class SettingController extends Controller
     public function index(): View
     {
         $agentHistoryLimit = Setting::get('agent_history_limit', '50');
-        $roundRobinLeadsBeforeSkippedReshown = max(1, min(5000, (int) (Setting::get('round_robin_leads_before_skipped_reshown', '5') ?? 5)));
+        $roundRobinLeadsBeforeSkippedReshown = max(
+            self::MIN_ROUND_ROBIN_RESHOW_LEADS,
+            min(
+                self::MAX_ROUND_ROBIN_RESHOW_LEADS,
+                (int) (Setting::get('round_robin_leads_before_skipped_reshown', (string) self::MIN_ROUND_ROBIN_RESHOW_LEADS) ?? self::MIN_ROUND_ROBIN_RESHOW_LEADS)
+            )
+        );
         $holdingStatusSlugs = Setting::getJsonArray('holding_status_slugs', self::DEFAULT_HOLDING_SLUGS);
         $crSoundNotificationsEnabled = Setting::get('cr_sound_notifications_enabled', '1') === '1';
         $callbackReminderMinutes = (int) (Setting::get('callback_reminder_minutes', '15') ?? '15');
@@ -92,7 +101,7 @@ class SettingController extends Controller
     {
         $validated = $request->validate([
             'agent_history_limit' => ['required', 'integer', 'min:1', 'max:500'],
-            'round_robin_leads_before_skipped_reshown' => ['required', 'integer', 'min:1', 'max:5000'],
+            'round_robin_leads_before_skipped_reshown' => ['required', 'integer', 'min:' . self::MIN_ROUND_ROBIN_RESHOW_LEADS, 'max:' . self::MAX_ROUND_ROBIN_RESHOW_LEADS],
             'holding_status_slugs' => ['nullable', 'array'],
             'holding_status_slugs.*' => ['string', 'exists:statuses,slug'],
             'cr_sound_notifications_enabled' => ['required', 'boolean'],
@@ -103,7 +112,13 @@ class SettingController extends Controller
         ]);
 
         Setting::put('agent_history_limit', (string) $validated['agent_history_limit']);
-        Setting::put('round_robin_leads_before_skipped_reshown', (string) max(1, min(5000, $validated['round_robin_leads_before_skipped_reshown'])));
+        Setting::put(
+            'round_robin_leads_before_skipped_reshown',
+            (string) max(
+                self::MIN_ROUND_ROBIN_RESHOW_LEADS,
+                min(self::MAX_ROUND_ROBIN_RESHOW_LEADS, $validated['round_robin_leads_before_skipped_reshown'])
+            )
+        );
 
         $slugs = array_values($validated['holding_status_slugs'] ?? []);
         Setting::putJsonArray('holding_status_slugs', $slugs);

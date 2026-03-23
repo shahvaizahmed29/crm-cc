@@ -25,6 +25,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class LeadController extends Controller
 {
     private const ACTIVE_STATUS_SLUG = 'new';
+    private const ROUND_ROBIN_SKIPPED_LEADS_KEY = 'round_robin_skipped_leads';
+    private const ROUND_ROBIN_GLOBAL_SEQUENCE_KEY = 'round_robin_global_sequence';
+    private const MIN_ROUND_ROBIN_RESHOW_LEADS = 2000;
+    private const MAX_ROUND_ROBIN_RESHOW_LEADS = 50000;
 
     /** @var array<int, string>|null */
     private ?array $holdingStatusSlugsCache = null;
@@ -387,28 +391,12 @@ class LeadController extends Controller
             return redirect()->route('agent.queue')->with('error', 'That lead is no longer available.');
         }
 
-        $todayUtc = \Carbon\Carbon::now('UTC')->format('Y-m-d');
-        $storedDate = $request->session()->get('agent_skip_date_utc');
-        if ($storedDate !== null && $storedDate !== $todayUtc) {
-            $request->session()->forget([
-                'agent_skip_list', 'agent_sequence', 'agent_last_shown_lead_id',
-                'agent_last_shown_sequence', 'agent_skip_offset',
-            ]);
-            $request->session()->put('agent_skip_date_utc', $todayUtc);
-            $request->session()->put('agent_sequence', 1);
-            $request->session()->put('agent_last_shown_sequence', 1);
-        }
-        $request->session()->put('agent_skip_date_utc', $todayUtc);
-
         $offset = (int) $request->session()->get('agent_skip_offset', 0);
         $request->session()->put('agent_skip_offset', $offset + 1);
 
-        $lastSequence = (int) $request->session()->get('agent_last_shown_sequence', 0);
-        $skipList = $request->session()->get('agent_skip_list', []);
-        $skipList = is_array($skipList) ? $skipList : [];
-        $skipList[$request->integer('lead_id')] = $lastSequence;
-        $request->session()->put('agent_skip_list', $skipList);
-        $request->session()->forget(['agent_last_shown_lead_id', 'agent_last_shown_sequence']);
+        $lastGlobalSequence = (int) $request->session()->get('agent_last_shown_global_sequence', 0);
+        $this->markLeadSkippedGlobally($request->integer('lead_id'), $lastGlobalSequence);
+        $request->session()->forget(['agent_last_shown_lead_id', 'agent_last_shown_global_sequence']);
 
         return redirect()->route('agent.queue');
     }
@@ -461,12 +449,7 @@ class LeadController extends Controller
             return redirect()->route('agent.queue')->with('error', $e->getMessage());
         }
 
-        $request->session()->forget(['agent_skipped_lead_ids', 'agent_skip_offset', 'agent_last_shown_lead_id', 'agent_last_shown_sequence']);
-        $skipList = $request->session()->get('agent_skip_list', []);
-        if (is_array($skipList)) {
-            unset($skipList[$assignedLead->id]);
-            $request->session()->put('agent_skip_list', $skipList);
-        }
+        $request->session()->forget(['agent_skipped_lead_ids', 'agent_skip_offset', 'agent_last_shown_lead_id', 'agent_last_shown_global_sequence']);
 
         return redirect()->route('leads.edit', $assignedLead)->with('success', 'Lead assigned to you.');
     }
@@ -1985,7 +1968,8 @@ class LeadController extends Controller
     /**
      * Next lead for the current agent using round-robin: one global list (same for all agents),
      * lead at index i is assigned to agent (i % numAgents). Skip advances this agent's slot.
-     * Skipped leads are hidden until N more leads have been shown (N = setting round_robin_leads_before_skipped_reshown).
+     * Skipped leads are hidden globally until N more leads have been shown (minimum 2000),
+     * or returned only when all non-skipped leads are exhausted.
      */
     private function nextAvailableLead(Request $request): ?Lead
     {
@@ -2005,47 +1989,23 @@ class LeadController extends Controller
             return null;
         }
 
-        $todayUtc = \Carbon\Carbon::now('UTC')->format('Y-m-d');
-        $storedDate = $request->session()->get('agent_skip_date_utc');
-        if ($storedDate !== null && $storedDate !== $todayUtc) {
-            $request->session()->forget([
-                'agent_skip_list', 'agent_sequence', 'agent_last_shown_lead_id',
-                'agent_last_shown_sequence', 'agent_skip_offset',
-            ]);
-        }
-        $request->session()->put('agent_skip_date_utc', $todayUtc);
-
-        $nReshow = max(1, min(5000, (int) (Setting::get('round_robin_leads_before_skipped_reshown', '5') ?? 5)));
-        $totalCount = count($leadIds);
-
-        $sequence = (int) $request->session()->get('agent_sequence', 0);
-        $sequence++;
-        $request->session()->put('agent_sequence', $sequence);
-
-        $skipList = $request->session()->get('agent_skip_list', []);
-        $skipList = is_array($skipList) ? $skipList : [];
+        $nReshow = $this->roundRobinReshowThreshold();
+        $globalSequence = $this->roundRobinGlobalSequence();
+        $skipList = $this->roundRobinSkippedLeadsMap();
         $leadIdsSet = array_flip($leadIds);
         $skipList = array_intersect_key($skipList, $leadIdsSet);
-        $request->session()->put('agent_skip_list', $skipList);
 
-        if ($totalCount < $nReshow) {
-            $availableLeadIds = array_values(array_filter($leadIds, fn ($id) => ! isset($skipList[$id])));
-            $skippedIds = array_values(array_filter($leadIds, fn ($id) => isset($skipList[$id])));
-            $availableLeadIds = array_merge($availableLeadIds, $skippedIds);
-        } else {
-            foreach ($skipList as $leadId => $skipSeq) {
-                if ($sequence - (int) $skipSeq >= $nReshow) {
-                    unset($skipList[$leadId]);
-                }
+        foreach ($skipList as $leadId => $skipSeq) {
+            if ($globalSequence - (int) $skipSeq >= $nReshow) {
+                unset($skipList[$leadId]);
             }
-            $request->session()->put('agent_skip_list', $skipList);
+        }
+        $this->persistRoundRobinSkippedLeadsMap($skipList);
 
-            $availableLeadIds = array_values(array_filter($leadIds, function ($id) use ($skipList, $sequence, $nReshow) {
-                if (! isset($skipList[$id])) {
-                    return true;
-                }
-                return $sequence - (int) $skipList[$id] >= $nReshow;
-            }));
+        $availableLeadIds = array_values(array_filter($leadIds, fn ($id) => ! isset($skipList[$id])));
+        if ($availableLeadIds === []) {
+            // All remaining leads are in the global skipped pool, so allow them again.
+            $availableLeadIds = $leadIds;
         }
 
         if ($availableLeadIds === []) {
@@ -2056,8 +2016,9 @@ class LeadController extends Controller
         $agentIds = $this->queueAgentIds();
         if ($agentIds === []) {
             $leadId = $availableLeadIds[0];
+            $globalSequence = $this->incrementRoundRobinGlobalSequence();
             $request->session()->put('agent_last_shown_lead_id', $leadId);
-            $request->session()->put('agent_last_shown_sequence', $sequence);
+            $request->session()->put('agent_last_shown_global_sequence', $globalSequence);
             return Lead::with(['status', 'phones'])->find($leadId);
         }
 
@@ -2065,8 +2026,9 @@ class LeadController extends Controller
         $myIndex = array_search((int) $currentAgentId, $agentIds, true);
         if ($myIndex === false) {
             $leadId = $availableLeadIds[0];
+            $globalSequence = $this->incrementRoundRobinGlobalSequence();
             $request->session()->put('agent_last_shown_lead_id', $leadId);
-            $request->session()->put('agent_last_shown_sequence', $sequence);
+            $request->session()->put('agent_last_shown_global_sequence', $globalSequence);
             return Lead::with(['status', 'phones'])->find($leadId);
         }
 
@@ -2080,10 +2042,82 @@ class LeadController extends Controller
         }
 
         $leadId = $availableLeadIds[$positionForMe];
+        $globalSequence = $this->incrementRoundRobinGlobalSequence();
         $request->session()->put('agent_last_shown_lead_id', $leadId);
-        $request->session()->put('agent_last_shown_sequence', $sequence);
+        $request->session()->put('agent_last_shown_global_sequence', $globalSequence);
 
         return Lead::with(['status', 'phones'])->find($leadId);
+    }
+
+    private function roundRobinReshowThreshold(): int
+    {
+        $configured = (int) (Setting::get('round_robin_leads_before_skipped_reshown', (string) self::MIN_ROUND_ROBIN_RESHOW_LEADS) ?? self::MIN_ROUND_ROBIN_RESHOW_LEADS);
+
+        return max(self::MIN_ROUND_ROBIN_RESHOW_LEADS, min(self::MAX_ROUND_ROBIN_RESHOW_LEADS, $configured));
+    }
+
+    private function roundRobinGlobalSequence(): int
+    {
+        return max(0, (int) (Setting::get(self::ROUND_ROBIN_GLOBAL_SEQUENCE_KEY, '0') ?? '0'));
+    }
+
+    private function incrementRoundRobinGlobalSequence(): int
+    {
+        $next = $this->roundRobinGlobalSequence() + 1;
+        Setting::put(self::ROUND_ROBIN_GLOBAL_SEQUENCE_KEY, (string) $next);
+
+        return $next;
+    }
+
+    /** @return array<int, int> */
+    private function roundRobinSkippedLeadsMap(): array
+    {
+        $raw = Setting::get(self::ROUND_ROBIN_SKIPPED_LEADS_KEY, '');
+        if ($raw === null || $raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($decoded as $leadId => $skipSeq) {
+            $id = (int) $leadId;
+            $seq = (int) $skipSeq;
+            if ($id > 0 && $seq >= 0) {
+                $result[$id] = $seq;
+            }
+        }
+
+        return $result;
+    }
+
+    /** @param array<int, int> $skipList */
+    private function persistRoundRobinSkippedLeadsMap(array $skipList): void
+    {
+        if ($skipList === []) {
+            Setting::put(self::ROUND_ROBIN_SKIPPED_LEADS_KEY, '');
+            return;
+        }
+
+        ksort($skipList);
+        Setting::put(self::ROUND_ROBIN_SKIPPED_LEADS_KEY, json_encode($skipList));
+    }
+
+    private function markLeadSkippedGlobally(int $leadId, int $lastShownGlobalSequence): void
+    {
+        if ($leadId <= 0) {
+            return;
+        }
+
+        $skipList = $this->roundRobinSkippedLeadsMap();
+        $sequence = $lastShownGlobalSequence > 0
+            ? $lastShownGlobalSequence
+            : $this->roundRobinGlobalSequence();
+        $skipList[$leadId] = $sequence;
+        $this->persistRoundRobinSkippedLeadsMap($skipList);
     }
 
     /** @return array<int> Ordered list of user IDs with agent role (stable order for round-robin). */
