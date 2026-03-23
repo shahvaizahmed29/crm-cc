@@ -28,7 +28,7 @@ class LeadController extends Controller
     private const ROUND_ROBIN_SKIPPED_LEADS_KEY = 'round_robin_skipped_leads';
     private const ROUND_ROBIN_GLOBAL_SEQUENCE_KEY = 'round_robin_global_sequence';
     private const MIN_ROUND_ROBIN_RESHOW_LEADS = 2000;
-    private const MAX_ROUND_ROBIN_RESHOW_LEADS = 50000;
+    private const MAX_ROUND_ROBIN_RESHOW_LEADS = 10000;
 
     /** @var array<int, string>|null */
     private ?array $holdingStatusSlugsCache = null;
@@ -1975,11 +1975,13 @@ class LeadController extends Controller
     {
         $queueStatusIds = $this->queueAssignableStatusIds();
 
+        $direction = $this->queueLeadOrderDirection();
+
         $leadIds = Lead::query()
             ->whereNull('assigned_to')
             ->whereIn('status_id', $queueStatusIds)
             ->where('is_dnc', false)
-            ->orderBy('id')
+            ->orderBy('id', $direction)
             ->pluck('id')
             ->values()
             ->all();
@@ -2144,6 +2146,13 @@ class LeadController extends Controller
         }
 
         return array_values(array_unique($ids));
+    }
+
+    private function queueLeadOrderDirection(): string
+    {
+        $direction = strtolower((string) (Setting::get('queue_lead_order_direction', 'asc') ?? 'asc'));
+
+        return in_array($direction, ['asc', 'desc'], true) ? $direction : 'asc';
     }
 
     private function shouldUnassignAfterStatusUpdate(int $statusId): bool

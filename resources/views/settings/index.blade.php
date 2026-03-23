@@ -43,13 +43,33 @@
                 name="round_robin_leads_before_skipped_reshown"
                 id="round_robin_leads_before_skipped_reshown"
                 min="2000"
-                max="50000"
+                max="10000"
                 value="{{ old('round_robin_leads_before_skipped_reshown', $roundRobinLeadsBeforeSkippedReshown ?? 2000) }}"
                 class="rounded-md border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500"
                 required
             >
         </div>
         @error('round_robin_leads_before_skipped_reshown')
+            <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
+        @enderror
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Queue lead order</h2>
+        <p class="mt-1 text-sm text-slate-500">Controls how unassigned new leads are ordered in round-robin by <code>created_at</code> and tie-breaker <code>id</code>.</p>
+        <div class="mt-3">
+            <label for="queue_lead_order_direction" class="sr-only">Queue lead order direction</label>
+            <select
+                name="queue_lead_order_direction"
+                id="queue_lead_order_direction"
+                class="rounded-md border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500"
+                required
+            >
+                <option value="asc" {{ old('queue_lead_order_direction', $queueLeadOrderDirection ?? 'asc') === 'asc' ? 'selected' : '' }}>ASC (oldest first)</option>
+                <option value="desc" {{ old('queue_lead_order_direction', $queueLeadOrderDirection ?? 'asc') === 'desc' ? 'selected' : '' }}>DESC (newest first)</option>
+            </select>
+        </div>
+        @error('queue_lead_order_direction')
             <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
         @enderror
     </div>

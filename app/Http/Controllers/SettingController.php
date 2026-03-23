@@ -14,7 +14,7 @@ use Illuminate\View\View;
 class SettingController extends Controller
 {
     private const MIN_ROUND_ROBIN_RESHOW_LEADS = 2000;
-    private const MAX_ROUND_ROBIN_RESHOW_LEADS = 50000;
+    private const MAX_ROUND_ROBIN_RESHOW_LEADS = 10000;
 
     private const DEFAULT_HOLDING_SLUGS = [
         'need-to-reconnect',
@@ -77,6 +77,10 @@ class SettingController extends Controller
         $holdingStatusSlugs = Setting::getJsonArray('holding_status_slugs', self::DEFAULT_HOLDING_SLUGS);
         $crSoundNotificationsEnabled = Setting::get('cr_sound_notifications_enabled', '1') === '1';
         $callbackReminderMinutes = (int) (Setting::get('callback_reminder_minutes', '15') ?? '15');
+        $queueLeadOrderDirection = strtolower((string) (Setting::get('queue_lead_order_direction', 'asc') ?? 'asc'));
+        if (! in_array($queueLeadOrderDirection, ['asc', 'desc'], true)) {
+            $queueLeadOrderDirection = 'asc';
+        }
         $newLeadsNotificationThreshold = Setting::get('new_leads_notification_threshold', '');
         $appTimezone = Setting::get('app_timezone', config('app.timezone')) ?: config('app.timezone');
         $ipWhitelist = Setting::getIpWhitelistCached();
@@ -89,6 +93,7 @@ class SettingController extends Controller
             'holdingStatusSlugs' => $holdingStatusSlugs,
             'crSoundNotificationsEnabled' => $crSoundNotificationsEnabled,
             'callbackReminderMinutes' => $callbackReminderMinutes,
+            'queueLeadOrderDirection' => $queueLeadOrderDirection,
             'newLeadsNotificationThreshold' => $newLeadsNotificationThreshold,
             'appTimezone' => $appTimezone,
             'ipWhitelist' => $ipWhitelist,
@@ -106,6 +111,7 @@ class SettingController extends Controller
             'holding_status_slugs.*' => ['string', 'exists:statuses,slug'],
             'cr_sound_notifications_enabled' => ['required', 'boolean'],
             'callback_reminder_minutes' => ['required', 'integer', 'min:1', 'max:1440'],
+            'queue_lead_order_direction' => ['required', 'string', 'in:asc,desc'],
             'new_leads_notification_threshold' => ['nullable', 'integer', 'min:0', 'max:10000'],
             'app_timezone' => ['required', 'string', 'timezone'],
             'ip_whitelist' => ['nullable', 'string'],
@@ -124,6 +130,7 @@ class SettingController extends Controller
         Setting::putJsonArray('holding_status_slugs', $slugs);
         Setting::put('cr_sound_notifications_enabled', $validated['cr_sound_notifications_enabled'] ? '1' : '0');
         Setting::put('callback_reminder_minutes', (string) $validated['callback_reminder_minutes']);
+        Setting::put('queue_lead_order_direction', strtolower($validated['queue_lead_order_direction']) === 'desc' ? 'desc' : 'asc');
         $threshold = array_key_exists('new_leads_notification_threshold', $validated) && $validated['new_leads_notification_threshold'] !== null && $validated['new_leads_notification_threshold'] !== ''
             ? (string) $validated['new_leads_notification_threshold']
             : '';
