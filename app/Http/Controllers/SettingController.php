@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\Lead;
 use App\Models\Setting;
 use App\Models\Status;
 use Illuminate\Http\RedirectResponse;
@@ -104,6 +105,12 @@ class SettingController extends Controller
 
     public function update(Request $request): RedirectResponse
     {
+        if ($request->boolean('reset_round_robin_queue')) {
+            $this->resetRoundRobinSkippedQueueState();
+
+            return redirect()->route('settings.index')->with('success', 'Round-robin skipped queue reset.');
+        }
+
         $validated = $request->validate([
             'agent_history_limit' => ['required', 'integer', 'min:1', 'max:500'],
             'round_robin_leads_before_skipped_reshown' => ['required', 'integer', 'min:' . self::MIN_ROUND_ROBIN_RESHOW_LEADS, 'max:' . self::MAX_ROUND_ROBIN_RESHOW_LEADS],
@@ -130,7 +137,12 @@ class SettingController extends Controller
         Setting::putJsonArray('holding_status_slugs', $slugs);
         Setting::put('cr_sound_notifications_enabled', $validated['cr_sound_notifications_enabled'] ? '1' : '0');
         Setting::put('callback_reminder_minutes', (string) $validated['callback_reminder_minutes']);
-        Setting::put('queue_lead_order_direction', strtolower($validated['queue_lead_order_direction']) === 'desc' ? 'desc' : 'asc');
+        $previousDirection = strtolower((string) (Setting::get('queue_lead_order_direction', 'asc') ?? 'asc'));
+        $newDirection = strtolower($validated['queue_lead_order_direction']) === 'desc' ? 'desc' : 'asc';
+        Setting::put('queue_lead_order_direction', $newDirection);
+        if ($previousDirection !== $newDirection) {
+            $this->resetRoundRobinSkippedQueueState();
+        }
         $threshold = array_key_exists('new_leads_notification_threshold', $validated) && $validated['new_leads_notification_threshold'] !== null && $validated['new_leads_notification_threshold'] !== ''
             ? (string) $validated['new_leads_notification_threshold']
             : '';
@@ -149,5 +161,11 @@ class SettingController extends Controller
         Artisan::call('config:clear');
 
         return redirect()->route('settings.index')->with('success', 'Settings saved.');
+    }
+
+    private function resetRoundRobinSkippedQueueState(): void
+    {
+        Setting::put('round_robin_global_sequence', '0');
+        Lead::query()->whereNotNull('skipped_at_sequence')->update(['skipped_at_sequence' => null]);
     }
 }

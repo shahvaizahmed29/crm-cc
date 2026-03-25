@@ -37,6 +37,7 @@ class Lead extends Model
             'approx_debt' => 'decimal:2',
             'fees' => 'decimal:2',
             'is_dnc' => 'boolean',
+            'skipped_at_sequence' => 'integer',
         ];
     }
 

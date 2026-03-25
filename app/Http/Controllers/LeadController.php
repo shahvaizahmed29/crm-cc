@@ -25,7 +25,6 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class LeadController extends Controller
 {
     private const ACTIVE_STATUS_SLUG = 'new';
-    private const ROUND_ROBIN_SKIPPED_LEADS_KEY = 'round_robin_skipped_leads';
     private const ROUND_ROBIN_GLOBAL_SEQUENCE_KEY = 'round_robin_global_sequence';
     private const MIN_ROUND_ROBIN_RESHOW_LEADS = 2000;
     private const MAX_ROUND_ROBIN_RESHOW_LEADS = 10000;
@@ -395,7 +394,13 @@ class LeadController extends Controller
         $request->session()->put('agent_skip_offset', $offset + 1);
 
         $lastGlobalSequence = (int) $request->session()->get('agent_last_shown_global_sequence', 0);
-        $this->markLeadSkippedGlobally($request->integer('lead_id'), $lastGlobalSequence);
+        $sequence = $lastGlobalSequence > 0 ? $lastGlobalSequence : $this->roundRobinGlobalSequence();
+        Lead::query()
+            ->whereKey($request->integer('lead_id'))
+            ->whereNull('assigned_to')
+            ->whereIn('status_id', $queueStatusIds)
+            ->where('is_dnc', false)
+            ->update(['skipped_at_sequence' => $sequence]);
         $request->session()->forget(['agent_last_shown_lead_id', 'agent_last_shown_global_sequence']);
 
         return redirect()->route('agent.queue');
@@ -441,6 +446,7 @@ class LeadController extends Controller
                 }
 
                 $lead->assigned_to = $agentId;
+                $lead->skipped_at_sequence = null;
                 $lead->save();
 
                 return $lead;
@@ -1977,14 +1983,14 @@ class LeadController extends Controller
 
         $direction = $this->queueLeadOrderDirection();
 
-        $leadIds = Lead::query()
+        $queueLeads = Lead::query()
             ->whereNull('assigned_to')
             ->whereIn('status_id', $queueStatusIds)
             ->where('is_dnc', false)
             ->orderBy('id', $direction)
-            ->pluck('id')
-            ->values()
-            ->all();
+            ->get(['id', 'skipped_at_sequence']);
+
+        $leadIds = $queueLeads->pluck('id')->values()->all();
 
         if ($leadIds === []) {
             $request->session()->forget('agent_skip_offset');
@@ -1993,18 +1999,17 @@ class LeadController extends Controller
 
         $nReshow = $this->roundRobinReshowThreshold();
         $globalSequence = $this->roundRobinGlobalSequence();
-        $skipList = $this->roundRobinSkippedLeadsMap();
-        $leadIdsSet = array_flip($leadIds);
-        $skipList = array_intersect_key($skipList, $leadIdsSet);
+        $availableLeadIds = $queueLeads
+            ->filter(function (Lead $lead) use ($globalSequence, $nReshow): bool {
+                if ($lead->skipped_at_sequence === null) {
+                    return true;
+                }
 
-        foreach ($skipList as $leadId => $skipSeq) {
-            if ($globalSequence - (int) $skipSeq >= $nReshow) {
-                unset($skipList[$leadId]);
-            }
-        }
-        $this->persistRoundRobinSkippedLeadsMap($skipList);
-
-        $availableLeadIds = array_values(array_filter($leadIds, fn ($id) => ! isset($skipList[$id])));
+                return $globalSequence - (int) $lead->skipped_at_sequence >= $nReshow;
+            })
+            ->pluck('id')
+            ->values()
+            ->all();
         if ($availableLeadIds === []) {
             // All remaining leads are in the global skipped pool, so allow them again.
             $availableLeadIds = $leadIds;
@@ -2069,57 +2074,6 @@ class LeadController extends Controller
         Setting::put(self::ROUND_ROBIN_GLOBAL_SEQUENCE_KEY, (string) $next);
 
         return $next;
-    }
-
-    /** @return array<int, int> */
-    private function roundRobinSkippedLeadsMap(): array
-    {
-        $raw = Setting::get(self::ROUND_ROBIN_SKIPPED_LEADS_KEY, '');
-        if ($raw === null || $raw === '') {
-            return [];
-        }
-
-        $decoded = json_decode($raw, true);
-        if (! is_array($decoded)) {
-            return [];
-        }
-
-        $result = [];
-        foreach ($decoded as $leadId => $skipSeq) {
-            $id = (int) $leadId;
-            $seq = (int) $skipSeq;
-            if ($id > 0 && $seq >= 0) {
-                $result[$id] = $seq;
-            }
-        }
-
-        return $result;
-    }
-
-    /** @param array<int, int> $skipList */
-    private function persistRoundRobinSkippedLeadsMap(array $skipList): void
-    {
-        if ($skipList === []) {
-            Setting::put(self::ROUND_ROBIN_SKIPPED_LEADS_KEY, '');
-            return;
-        }
-
-        ksort($skipList);
-        Setting::put(self::ROUND_ROBIN_SKIPPED_LEADS_KEY, json_encode($skipList));
-    }
-
-    private function markLeadSkippedGlobally(int $leadId, int $lastShownGlobalSequence): void
-    {
-        if ($leadId <= 0) {
-            return;
-        }
-
-        $skipList = $this->roundRobinSkippedLeadsMap();
-        $sequence = $lastShownGlobalSequence > 0
-            ? $lastShownGlobalSequence
-            : $this->roundRobinGlobalSequence();
-        $skipList[$leadId] = $sequence;
-        $this->persistRoundRobinSkippedLeadsMap($skipList);
     }
 
     /** @return array<int> Ordered list of user IDs with agent role (stable order for round-robin). */
