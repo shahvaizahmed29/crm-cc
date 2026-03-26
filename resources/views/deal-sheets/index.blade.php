@@ -6,49 +6,99 @@
 <x-page-header title="Deal sheets">
     <x-slot:actions>
         <a href="{{ route('leads.index') }}" class="inline-flex rounded-lg bg-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-300">All leads</a>
+        @if(isset($newStatusId) && $newStatusId)
+            <a href="{{ route('leads.new.index') }}" class="inline-flex rounded-lg bg-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-300">New leads</a>
+        @endif
     </x-slot:actions>
 </x-page-header>
 
+@if(session('import_warnings'))
+    <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <p class="font-medium">Some files were skipped:</p>
+        <ul class="mt-2 list-inside list-disc space-y-1">
+            @foreach(session('import_warnings') as $w)
+                <li>{{ $w }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
+
 <p class="mt-2 text-sm text-slate-600">
-    Upload a <strong>.txt</strong> file in the <strong>exact same format</strong> as when you download a lead from the admin portal
-    (<span class="font-medium">Download TXT</span> on a lead, or filtered export from the Leads list). Each file creates one or more leads with status
-    <span class="font-semibold">Deal sheet uploaded</span>. These leads are <strong>not</strong> shown in the agent queue; assign them here or from the lead edit screen.
+    Upload one or more <strong>.txt</strong> files in the <strong>same format</strong> as the admin lead export
+    (<span class="font-medium">Download TXT</span> on a lead, or filtered export from the Leads list). Choose whether imported rows become
+    <strong>New</strong> (agent queue / New Leads) or <strong>Deal sheet uploaded</strong> (not in the queue; assign below or on the lead).
 </p>
 
 @if(!$dealSheetStatusId)
     <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        Status “Deal sheet uploaded” is missing. Run <code class="rounded bg-amber-100 px-1">php artisan migrate</code> (and seeders if needed).
+        Status “Deal sheet uploaded” is missing. You can still import as <strong>New</strong>. For “Deal sheet uploaded”, run <code class="rounded bg-amber-100 px-1">php artisan migrate</code>.
+    </div>
+@endif
+@if(!isset($newStatusId) || !$newStatusId)
+    <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        Status “New” is missing. Run migrations and seeders before importing as New.
     </div>
 @endif
 
 <div class="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-    <h2 class="text-base font-semibold text-slate-900">Upload deal sheet (.txt)</h2>
-    <form action="{{ route('deal-sheets.store') }}" method="POST" enctype="multipart/form-data" class="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end">
+    <h2 class="text-base font-semibold text-slate-900">Bulk upload (.txt)</h2>
+    <p class="mt-1 text-xs text-slate-500">Select multiple files at once (Ctrl/Cmd+click). Each file can contain one lead or several separated by a line of 70 dashes (same as bulk TXT export).</p>
+
+    <form action="{{ route('deal-sheets.store') }}" method="POST" enctype="multipart/form-data" class="mt-4 space-y-4">
         @csrf
-        <div class="min-w-0 flex-1">
-            <label for="deal_sheet" class="mb-1 block text-sm font-medium text-slate-700">TXT file</label>
-            <input
-                type="file"
-                name="deal_sheet"
-                id="deal_sheet"
-                accept=".txt,text/plain"
-                required
-                class="block w-full text-sm text-slate-700 file:mr-4 file:rounded-md file:border-0 file:bg-sky-50 file:px-4 file:py-2 file:text-sky-700"
-            >
-            @error('deal_sheet')
+
+        <div>
+            <span class="mb-2 block text-sm font-medium text-slate-700">Import leads as</span>
+            <div class="flex flex-col gap-2 sm:flex-row sm:gap-6">
+                <label class="inline-flex cursor-pointer items-center gap-2">
+                    <input type="radio" name="import_status" value="new" class="text-sky-600 focus:ring-sky-500" {{ old('import_status', 'deal-sheet-uploaded') === 'new' ? 'checked' : '' }}>
+                    <span class="text-sm text-slate-800"><strong>New</strong> — appears on New Leads &amp; agent queue</span>
+                </label>
+                <label class="inline-flex cursor-pointer items-center gap-2">
+                    <input type="radio" name="import_status" value="deal-sheet-uploaded" class="text-sky-600 focus:ring-sky-500" {{ old('import_status', 'deal-sheet-uploaded') === 'deal-sheet-uploaded' ? 'checked' : '' }}>
+                    <span class="text-sm text-slate-800"><strong>Deal sheet uploaded</strong> — not in queue; admin assigns</span>
+                </label>
+            </div>
+            @error('import_status')
                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
             @enderror
         </div>
-        <button type="submit" class="inline-flex justify-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-500 disabled:opacity-50" @if(!$dealSheetStatusId) disabled @endif>
-            Import
-        </button>
+
+        <div>
+            <label for="deal_sheets" class="mb-1 block text-sm font-medium text-slate-700">TXT file(s)</label>
+            <input
+                type="file"
+                name="deal_sheets[]"
+                id="deal_sheets"
+                accept=".txt,text/plain"
+                multiple
+                required
+                class="block w-full text-sm text-slate-700 file:mr-4 file:rounded-md file:border-0 file:bg-sky-50 file:px-4 file:py-2 file:text-sky-700"
+            >
+            @error('deal_sheets')
+                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+            @enderror
+            @foreach($errors->getMessages() as $key => $messages)
+                @if(\Illuminate\Support\Str::startsWith($key, 'deal_sheets.'))
+                    @foreach($messages as $message)
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @endforeach
+                @endif
+            @endforeach
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+            <button type="submit" class="inline-flex justify-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50">
+                Import
+            </button>
+        </div>
     </form>
 </div>
 
 <div class="mt-10 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
     <div class="border-b border-slate-200 bg-slate-50 px-4 py-3">
-        <h2 class="text-sm font-semibold text-slate-800">Deal sheet leads</h2>
-        <p class="mt-0.5 text-xs text-slate-500">Assign to an agent using the dropdown, or open the lead to edit like any other lead.</p>
+        <h2 class="text-sm font-semibold text-slate-800">Deal sheet uploaded — leads</h2>
+        <p class="mt-0.5 text-xs text-slate-500">Only leads with status “Deal sheet uploaded”. Imports as <strong>New</strong> appear on the <a href="{{ route('leads.new.index') }}" class="font-medium text-sky-600 hover:text-sky-500">New Leads</a> page.</p>
     </div>
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-200">
@@ -90,7 +140,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="px-4 py-8 text-center text-sm text-slate-500">No deal sheet leads yet. Upload a TXT file above.</td>
+                        <td colspan="5" class="px-4 py-8 text-center text-sm text-slate-500">No leads with status “Deal sheet uploaded” yet. Choose that option above or see <a href="{{ route('leads.new.index') }}" class="text-sky-600 hover:text-sky-500">New Leads</a> for queue imports.</td>
                     </tr>
                 @endforelse
             </tbody>

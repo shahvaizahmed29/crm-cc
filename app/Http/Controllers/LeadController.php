@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AdminNewLeadNotifier;
 use App\Models\CrmNotification;
 use App\Models\Lead;
 use App\Models\LeadCard;
@@ -293,56 +294,6 @@ class LeadController extends Controller
     private function newLeadsQuery(): Builder
     {
         return Lead::query()->newStatusOnly();
-    }
-
-    private function isLeadNewOrUnassigned(Lead $lead): bool
-    {
-        $newStatusId = $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG);
-
-        return (int) $lead->status_id === (int) $newStatusId || $lead->assigned_to === null;
-    }
-
-    private function notifyAdminsOfNewLeadIfApplicable(Lead $lead): void
-    {
-        if (! $this->isLeadNewOrUnassigned($lead)) {
-            return;
-        }
-
-        $thresholdRaw = Setting::get('new_leads_notification_threshold', '');
-        if ($thresholdRaw !== '' && $thresholdRaw !== null) {
-            $threshold = (int) $thresholdRaw;
-            $currentNewLeadsCount = $this->newLeadsQuery()->count();
-            if ($currentNewLeadsCount >= $threshold) {
-                return;
-            }
-        }
-
-        $adminIds = User::query()
-            ->whereHas('roles', fn ($q) => $q->where('slug', 'admin'))
-            ->pluck('id');
-
-        $notifyAt = now();
-        $title = 'New lead: ' . $lead->fullName();
-        $message = 'Lead has status New or is unassigned.';
-        $actionUrl = route('leads.edit', $lead);
-
-        foreach ($adminIds as $adminId) {
-            CrmNotification::query()->create([
-                'created_by' => auth()->id(),
-                'target_user_id' => (int) $adminId,
-                'type' => 'new_lead',
-                'entity_type' => 'lead',
-                'entity_id' => $lead->id,
-                'title' => $title,
-                'message' => $message,
-                'action_url' => $actionUrl,
-                'notify_at' => $notifyAt,
-                'sent_at' => $notifyAt,
-                'status' => 'sent',
-                'priority' => 'normal',
-                'meta' => ['lead_id' => $lead->id],
-            ]);
-        }
     }
 
     public function agentQueue(Request $request): View
@@ -684,7 +635,7 @@ class LeadController extends Controller
                             $lead->emails()->create(['email' => $e]);
                         }
 
-                        $this->notifyAdminsOfNewLeadIfApplicable($lead);
+                        app(AdminNewLeadNotifier::class)->notifyIfApplicable($lead);
                         $created++;
                     }
                 });
@@ -925,7 +876,7 @@ class LeadController extends Controller
             );
         }
 
-        $this->notifyAdminsOfNewLeadIfApplicable($lead);
+        app(AdminNewLeadNotifier::class)->notifyIfApplicable($lead);
 
         return redirect()->route('leads.index')->with('success', 'Lead created successfully.');
     }
@@ -980,7 +931,7 @@ class LeadController extends Controller
             $relatedLead->emails()->create(['email' => $email]);
         }
 
-        $this->notifyAdminsOfNewLeadIfApplicable($relatedLead);
+        app(AdminNewLeadNotifier::class)->notifyIfApplicable($relatedLead);
 
         return redirect()->route('leads.edit', $relatedLead)->with('success', 'Related lead added successfully.');
     }
@@ -2068,10 +2019,16 @@ class LeadController extends Controller
         $numAgents = count($agentIds);
         $skipOffset = (int) $request->session()->get('agent_skip_offset', 0);
         $positionForMe = $myIndex + ($skipOffset * $numAgents);
+        $availableCount = count($availableLeadIds);
 
-        if ($positionForMe >= count($availableLeadIds)) {
+        if ($positionForMe >= $availableCount) {
             $request->session()->forget('agent_skip_offset');
-            return null;
+            // Fallback: when this lane is out of range, wrap to a valid slot so
+            // agents still get a lead when pool has entries.
+            if ($availableCount <= 0) {
+                return null;
+            }
+            $positionForMe = $myIndex % $availableCount;
         }
 
         $leadId = $availableLeadIds[$positionForMe];
