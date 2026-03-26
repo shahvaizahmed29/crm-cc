@@ -2073,16 +2073,9 @@ class LeadController extends Controller
     /** @return array<int> */
     private function queueAssignableStatusIds(): array
     {
-        $statusIdsBySlug = $this->statusIdsBySlug();
-        $ids = [];
+        $newStatusId = $this->statusIdsBySlug()[self::ACTIVE_STATUS_SLUG] ?? null;
 
-        foreach ([self::ACTIVE_STATUS_SLUG, 'not-interested'] as $slug) {
-            if (isset($statusIdsBySlug[$slug])) {
-                $ids[] = $statusIdsBySlug[$slug];
-            }
-        }
-
-        return array_values(array_unique($ids));
+        return $newStatusId !== null ? [(int) $newStatusId] : [];
     }
 
     private function queueLeadOrderDirection(): string
