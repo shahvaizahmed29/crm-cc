@@ -25,6 +25,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class LeadController extends Controller
 {
     private const ACTIVE_STATUS_SLUG = 'new';
+
+    private const DEAL_SHEET_STATUS_SLUG = 'deal-sheet-uploaded';
     private const ROUND_ROBIN_GLOBAL_SEQUENCE_KEY = 'round_robin_global_sequence';
     private const MIN_ROUND_ROBIN_RESHOW_LEADS = 2000;
     private const MAX_ROUND_ROBIN_RESHOW_LEADS = 10000;
@@ -839,7 +841,7 @@ class LeadController extends Controller
             abort(403, 'Only admin can create leads manually.');
         }
 
-        $statuses = Status::orderBy('name')->get();
+        $statuses = Status::where('slug', '!=', self::DEAL_SHEET_STATUS_SLUG)->orderBy('name')->get();
         $callbackStatusId = $this->statusIdsBySlug()['callback'] ?? null;
 
         return view('leads.create', compact('statuses', 'callbackStatusId'));
@@ -852,6 +854,13 @@ class LeadController extends Controller
         }
 
         $validated = $this->validateLeadPayload($request);
+
+        $dealSheetStatusId = $this->statusIdsBySlug()[self::DEAL_SHEET_STATUS_SLUG] ?? null;
+        if ($dealSheetStatusId !== null && (int) $validated['status_id'] === (int) $dealSheetStatusId) {
+            return back()->withErrors([
+                'status_id' => 'Use the Deal sheets page to create leads with status “Deal sheet uploaded”.',
+            ])->withInput();
+        }
 
         $callbackStatusId = $this->statusIdsBySlug()['callback'] ?? null;
         if ($callbackStatusId !== null && (int) $validated['status_id'] === $callbackStatusId) {
@@ -1095,6 +1104,9 @@ class LeadController extends Controller
         $statuses = auth()->user()->isAgent()
             ? Status::where('slug', '!=', self::ACTIVE_STATUS_SLUG)->orderBy('name')->get()
             : Status::orderBy('name')->get();
+        if ($lead->status?->slug !== self::DEAL_SHEET_STATUS_SLUG) {
+            $statuses = $statuses->filter(fn (Status $s) => $s->slug !== self::DEAL_SHEET_STATUS_SLUG)->values();
+        }
         $agents = auth()->user()->isAdmin()
             ? \App\Models\User::whereHas('roles', fn ($q) => $q->where('slug', 'agent'))->orderBy('name')->get()->mapWithKeys(fn ($u) => [$u->id => $u->displayName()])
             : collect();
@@ -1131,6 +1143,20 @@ class LeadController extends Controller
 
         if (auth()->user()->isAgent() && (int) $validated['status_id'] === $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG)) {
             return back()->with('error', 'Agent must submit with a non-New status.')->withInput();
+        }
+
+        $dealSheetStatusId = $this->statusIdsBySlug()[self::DEAL_SHEET_STATUS_SLUG] ?? null;
+        if ($dealSheetStatusId !== null) {
+            if ((int) $validated['status_id'] === (int) $dealSheetStatusId && (int) $lead->status_id !== (int) $dealSheetStatusId) {
+                return back()->withErrors([
+                    'status_id' => 'You cannot set status to “Deal sheet uploaded” here. Use the Deal sheets upload.',
+                ])->withInput();
+            }
+            if (auth()->user()->isAgent() && (int) $validated['status_id'] === (int) $dealSheetStatusId) {
+                return back()->withErrors([
+                    'status_id' => 'Agents cannot set this status.',
+                ])->withInput();
+            }
         }
 
         $callbackStatusId = $this->statusIdsBySlug()['callback'] ?? null;

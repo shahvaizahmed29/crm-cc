@@ -27,6 +27,7 @@ class Lead extends Model
         'approx_debt',
         'fees',
         'details',
+        'deal_sheet_source_path',
         'is_dnc',
     ];
 

@@ -48,6 +48,7 @@
                     <a href="{{ route('agent.queue') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('agent.queue') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Queue</a>
                     @endif
                     @if(auth()->user()->isAdmin())
+                    <a href="{{ route('deal-sheets.index') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('deal-sheets.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Deal sheets</a>
                     <a href="{{ route('leads.new.index') }}" class="relative shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('leads.new.index') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
                         New Leads
                         <span class="js-new-leads-badge ml-1 hidden items-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
@@ -124,6 +125,7 @@
                     <a href="{{ route('agent.queue') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('agent.queue') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Queue</a>
                     @endif
                     @if(auth()->user()->isAdmin())
+                    <a href="{{ route('deal-sheets.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('deal-sheets.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Deal sheets</a>
                     <a href="{{ route('leads.new.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('leads.new.index') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
                         New Leads
                         <span class="js-new-leads-badge ml-1 hidden items-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">

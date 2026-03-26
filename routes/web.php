@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CreditReportController;
+use App\Http\Controllers\DealSheetController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\IpWhitelistRecoveryController;
 use App\Http\Controllers\LeadController;
@@ -33,6 +34,10 @@ Route::middleware('auth')->group(function (): void {
         Route::get('credit-reports/pending-count', [CreditReportController::class, 'pendingCount'])->name('credit-reports.pending-count');
         Route::post('credit-reports/{creditReport}/result', [CreditReportController::class, 'uploadResult'])->name('credit-reports.result');
         Route::delete('credit-reports/{creditReport}', [CreditReportController::class, 'destroy'])->name('credit-reports.destroy');
+        Route::get('deal-sheets', [DealSheetController::class, 'index'])->name('deal-sheets.index');
+        Route::post('deal-sheets', [DealSheetController::class, 'store'])->name('deal-sheets.store');
+        Route::post('deal-sheets/{lead}/assign', [DealSheetController::class, 'assign'])->name('deal-sheets.assign');
+
         Route::get('leads/new', [LeadController::class, 'adminNewLeads'])->name('leads.new.index');
         Route::post('leads/new/bulk-delete', [LeadController::class, 'bulkDestroyNewLeads'])->name('leads.new.bulk-destroy');
         Route::get('leads/new-count', [LeadController::class, 'newLeadsCount'])->name('leads.new.count');

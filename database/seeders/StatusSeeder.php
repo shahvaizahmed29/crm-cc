@@ -23,6 +23,7 @@ class StatusSeeder extends Seeder
             ['name' => 'Drop', 'slug' => 'drop'],
             ['name' => 'Not Interested', 'slug' => 'not-interested'],
             ['name' => 'Submitted', 'slug' => 'submitted'],
+            ['name' => 'Deal sheet uploaded', 'slug' => 'deal-sheet-uploaded'],
         ];
 
         $adminRole = Role::where('slug', 'admin')->first();

@@ -22,6 +22,7 @@ class SettingController extends Controller
         'callback',
         'maxout',
         'drop',
+        'deal-sheet-uploaded',
     ];
 
     /**
