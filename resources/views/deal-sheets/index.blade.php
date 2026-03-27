@@ -188,7 +188,16 @@
                             @enderror
                         </td>
                         <td class="whitespace-nowrap px-4 py-3 text-right align-middle">
-                            <a href="{{ route('leads.edit', $lead) }}" class="inline-flex h-9 items-center justify-end text-sm font-medium text-sky-600 hover:text-sky-500">Edit</a>
+                            <div class="flex items-center justify-end gap-2">
+                                <a href="{{ route('leads.edit', $lead) }}" class="inline-flex h-9 items-center justify-end text-sm font-medium text-sky-600 hover:text-sky-500">Edit</a>
+                                <form method="POST" action="{{ route('deal-sheets.destroy', $lead) }}" onsubmit="return confirm('Delete this deal sheet lead? This cannot be undone.')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="inline-flex h-9 items-center rounded-md border border-red-300 bg-red-50 px-3 text-xs font-semibold text-red-700 hover:bg-red-100">
+                                        Delete
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                 @empty

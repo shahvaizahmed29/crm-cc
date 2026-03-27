@@ -339,4 +339,16 @@ class DealSheetController extends Controller
 
         return back()->with('success', 'Assignment updated.');
     }
+
+    public function destroy(Lead $lead): RedirectResponse
+    {
+        $statusId = Status::where('slug', self::STATUS_SLUG)->value('id');
+        if ($statusId === null || (int) $lead->status_id !== (int) $statusId) {
+            abort(404);
+        }
+
+        $lead->delete();
+
+        return back()->with('success', 'Deal sheet lead deleted.');
+    }
 }
