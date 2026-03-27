@@ -36,6 +36,7 @@ Route::middleware('auth')->group(function (): void {
         Route::delete('credit-reports/{creditReport}', [CreditReportController::class, 'destroy'])->name('credit-reports.destroy');
         Route::get('deal-sheets', [DealSheetController::class, 'index'])->name('deal-sheets.index');
         Route::post('deal-sheets', [DealSheetController::class, 'store'])->name('deal-sheets.store');
+        Route::post('deal-sheets/import-preview', [DealSheetController::class, 'importPreview'])->name('deal-sheets.import-preview');
         Route::post('deal-sheets/{lead}/assign', [DealSheetController::class, 'assign'])->name('deal-sheets.assign');
 
         Route::get('leads/new', [LeadController::class, 'adminNewLeads'])->name('leads.new.index');

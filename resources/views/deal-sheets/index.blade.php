@@ -89,11 +89,64 @@
 
         <div class="flex flex-wrap items-center gap-3">
             <button type="submit" class="inline-flex justify-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50">
-                Import
+                Preview Import
             </button>
         </div>
     </form>
 </div>
+
+@if(isset($preview) && is_array($preview))
+<div class="mt-6 rounded-xl border border-sky-200 bg-sky-50 p-6 shadow-sm">
+    <h2 class="text-base font-semibold text-slate-900">Preview Before Import</h2>
+    <p class="mt-1 text-sm text-slate-700">
+        Parsed <strong>{{ $preview['total_leads'] ?? 0 }}</strong> lead(s) from
+        <strong>{{ $preview['files_prepared'] ?? 0 }}</strong> file(s),
+        target status:
+        <strong>{{ (($preview['import_status'] ?? '') === 'new') ? 'New' : 'Deal sheet uploaded' }}</strong>.
+    </p>
+    <div class="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <table class="min-w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">File</th>
+                    <th class="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Leads parsed</th>
+                    <th class="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Example names</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+                @foreach(($preview['files'] ?? []) as $f)
+                    <tr>
+                        <td class="px-3 py-2 text-sm text-slate-800">{{ $f['original_name'] ?? 'file.txt' }}</td>
+                        <td class="px-3 py-2 text-sm text-slate-700">{{ $f['lead_count'] ?? 0 }}</td>
+                        <td class="px-3 py-2 text-sm text-slate-700">
+                            @php
+                                $examples = collect($f['blocks'] ?? [])
+                                    ->take(3)
+                                    ->map(fn($b) => trim((string) (($b['first_name'] ?? '') . ' ' . ($b['last_name'] ?? ''))))
+                                    ->filter()
+                                    ->values();
+                            @endphp
+                            {{ $examples->isNotEmpty() ? $examples->join(', ') : '—' }}
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+    <div class="mt-4 flex flex-wrap items-center gap-2">
+        <form action="{{ route('deal-sheets.import-preview') }}" method="POST">
+            @csrf
+            <input type="hidden" name="preview_token" value="{{ $previewToken }}">
+            <button type="submit" class="inline-flex rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500">
+                Confirm Import
+            </button>
+        </form>
+        <a href="{{ route('deal-sheets.index') }}" class="inline-flex rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            Cancel Preview
+        </a>
+    </div>
+</div>
+@endif
 
 <div class="mt-10 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
     <div class="border-b border-slate-200 bg-slate-50 px-4 py-3">
@@ -122,7 +175,7 @@
                         <td class="px-4 py-3 align-middle">
                             <form action="{{ route('deal-sheets.assign', $lead) }}" method="POST" class="flex flex-wrap items-center gap-2">
                                 @csrf
-                                <select name="assigned_to" class="h-9 min-w-[10rem] rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800 shadow-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500">
+                                <select name="assigned_to" class="h-9 min-w-40 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800 shadow-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500">
                                     <option value="">— Unassigned —</option>
                                     @foreach($agents as $agent)
                                         <option value="{{ $agent->id }}" {{ (int) $lead->assigned_to === (int) $agent->id ? 'selected' : '' }}>{{ $agent->displayName() }}</option>

@@ -12,17 +12,28 @@ use App\Models\User;
 use App\Services\LeadTxtExportParser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class DealSheetController extends Controller
 {
     private const STATUS_SLUG = 'deal-sheet-uploaded';
+    private const PREVIEW_CACHE_TTL_MINUTES = 30;
 
     public function index(): View
     {
         $statusId = Status::where('slug', self::STATUS_SLUG)->value('id');
         $newStatusId = Status::where('slug', 'new')->value('id');
+        $previewToken = trim((string) request()->query('preview', ''));
+        $preview = null;
+        if ($previewToken !== '') {
+            $cached = Cache::get($this->previewCacheKey((int) auth()->id(), $previewToken));
+            if (is_array($cached) && (($cached['created_by'] ?? null) === (int) auth()->id())) {
+                $preview = $cached;
+            }
+        }
 
         $leads = Lead::query()
             ->with(['status', 'assignedTo', 'phones'])
@@ -42,9 +53,14 @@ class DealSheetController extends Controller
             'agents' => $agents,
             'dealSheetStatusId' => $statusId,
             'newStatusId' => $newStatusId,
+            'preview' => $preview,
+            'previewToken' => $previewToken !== '' ? $previewToken : null,
         ]);
     }
 
+    /**
+     * Step 1: parse uploads and cache preview data.
+     */
     public function store(Request $request, LeadTxtExportParser $parser): RedirectResponse
     {
         $validated = $request->validate([
@@ -63,9 +79,9 @@ class DealSheetController extends Controller
 
         $files = $request->file('deal_sheets', []);
         $warnings = [];
-        $totalCreated = 0;
-        $filesImported = 0;
-        $adminId = auth()->id();
+        $filesPrepared = 0;
+        $totalParsedLeads = 0;
+        $preparedFiles = [];
 
         foreach ($files as $file) {
             if (! $file->isValid()) {
@@ -89,62 +105,137 @@ class DealSheetController extends Controller
                 continue;
             }
 
-            $path = $file->store('deal-sheets', 'local');
+            $storedPath = $file->store('deal-sheets/pending', 'local');
+            $preparedFiles[] = [
+                'original_name' => (string) ($file->getClientOriginalName() ?: 'deal-sheet.txt'),
+                'stored_path' => $storedPath,
+                'lead_count' => count($blocks),
+                'blocks' => $blocks,
+            ];
+            $totalParsedLeads += count($blocks);
+            $filesPrepared++;
+        }
+
+        if ($totalParsedLeads === 0) {
+            return back()->withErrors([
+                'deal_sheets' => $warnings !== []
+                    ? implode(' ', $warnings)
+                    : 'No leads were parsed. Add at least one valid .txt file.',
+            ])->withInput();
+        }
+
+        $previewToken = (string) Str::uuid();
+        Cache::put(
+            $this->previewCacheKey((int) auth()->id(), $previewToken),
+            [
+                'created_by' => (int) auth()->id(),
+                'import_status' => $importSlug,
+                'target_status_id' => (int) $targetStatusId,
+                'created_at' => now()->toIso8601String(),
+                'files_prepared' => $filesPrepared,
+                'total_leads' => $totalParsedLeads,
+                'files' => $preparedFiles,
+                'warnings' => $warnings,
+            ],
+            now()->addMinutes(self::PREVIEW_CACHE_TTL_MINUTES)
+        );
+
+        return redirect()->route('deal-sheets.index', ['preview' => $previewToken]);
+    }
+
+    /**
+     * Step 2: confirm preview and import.
+     */
+    public function importPreview(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'preview_token' => ['required', 'string'],
+        ]);
+
+        $token = $validated['preview_token'];
+        $cacheKey = $this->previewCacheKey((int) auth()->id(), $token);
+        $preview = Cache::get($cacheKey);
+        if (! is_array($preview) || (($preview['created_by'] ?? null) !== (int) auth()->id())) {
+            return redirect()->route('deal-sheets.index')->withErrors([
+                'deal_sheets' => 'Preview expired. Please upload files again.',
+            ]);
+        }
+
+        $targetStatusId = (int) ($preview['target_status_id'] ?? 0);
+        $importSlug = (string) ($preview['import_status'] ?? '');
+        $files = is_array($preview['files'] ?? null) ? $preview['files'] : [];
+        $adminId = auth()->id();
+        $totalCreated = 0;
+        $filesImported = 0;
+        $warnings = is_array($preview['warnings'] ?? null) ? $preview['warnings'] : [];
+
+        foreach ($files as $fileData) {
+            $storedPath = (string) ($fileData['stored_path'] ?? '');
+            $blocks = is_array($fileData['blocks'] ?? null) ? $fileData['blocks'] : [];
+            if ($storedPath === '' || $blocks === []) {
+                continue;
+            }
 
             foreach ($blocks as $data) {
-                DB::transaction(function () use ($data, $path, $targetStatusId, $adminId): void {
+                if (! is_array($data)) {
+                    continue;
+                }
+                DB::transaction(function () use ($data, $storedPath, $targetStatusId, $adminId): void {
                     $lead = Lead::create([
-                        'first_name' => $data['first_name'],
-                        'last_name' => $data['last_name'] !== '' ? $data['last_name'] : '—',
-                        'address' => $data['address'],
-                        'date_of_birth' => $data['date_of_birth'],
-                        'mothers_maiden_name' => $data['mothers_maiden_name'],
-                        'ssn' => $data['ssn'],
-                        'approx_debt' => $data['approx_debt'],
-                        'fees' => $data['fees'],
-                        'details' => $data['details'],
+                        'first_name' => $data['first_name'] ?? 'Unknown',
+                        'last_name' => ($data['last_name'] ?? '') !== '' ? (string) $data['last_name'] : '—',
+                        'address' => $data['address'] ?? null,
+                        'date_of_birth' => $data['date_of_birth'] ?? null,
+                        'mothers_maiden_name' => $data['mothers_maiden_name'] ?? null,
+                        'ssn' => $data['ssn'] ?? null,
+                        'approx_debt' => $data['approx_debt'] ?? null,
+                        'fees' => $data['fees'] ?? null,
+                        'details' => $data['details'] ?? null,
                         'is_dnc' => false,
                         'status_id' => $targetStatusId,
                         'assigned_to' => null,
-                        'deal_sheet_source_path' => $path,
+                        'deal_sheet_source_path' => $storedPath,
                         'skipped_at_sequence' => null,
                     ]);
 
-                    foreach ($data['phones'] as $phone) {
-                        $lead->phones()->create(['phone' => $phone]);
+                    foreach (($data['phones'] ?? []) as $phone) {
+                        if (is_string($phone) && trim($phone) !== '') {
+                            $lead->phones()->create(['phone' => $phone]);
+                        }
                     }
-                    if (! empty($data['email'])) {
+                    if (! empty($data['email']) && is_string($data['email'])) {
                         $lead->emails()->create(['email' => $data['email']]);
                     }
 
-                    foreach ($data['cards'] as $c) {
+                    foreach (($data['cards'] ?? []) as $c) {
+                        if (! is_array($c)) {
+                            continue;
+                        }
                         LeadCard::create([
                             'lead_id' => $lead->id,
-                            'bank_name' => $c['bank_name'] ?: null,
-                            'bank_tollfree' => $c['bank_tollfree'] ?: null,
-                            'card_number' => $c['card_number'] ?: null,
-                            'name_on_card' => $c['name_on_card'] ?: null,
-                            'card_expiry' => $c['card_expiry'] ?: null,
-                            'card_cvc' => $c['card_cvc'] ?: null,
-                            'balance' => $c['balance'],
-                            'available_amount' => $c['available_amount'],
-                            'last_payment' => $c['last_payment'] ?: null,
-                            'due_payment' => $c['due_payment'] ?: null,
-                            'apr' => $c['apr'],
+                            'bank_name' => $c['bank_name'] ?? null,
+                            'bank_tollfree' => $c['bank_tollfree'] ?? null,
+                            'card_number' => $c['card_number'] ?? null,
+                            'name_on_card' => $c['name_on_card'] ?? null,
+                            'card_expiry' => $c['card_expiry'] ?? null,
+                            'card_cvc' => $c['card_cvc'] ?? null,
+                            'balance' => $c['balance'] ?? null,
+                            'available_amount' => $c['available_amount'] ?? null,
+                            'last_payment' => $c['last_payment'] ?? null,
+                            'due_payment' => $c['due_payment'] ?? null,
+                            'apr' => $c['apr'] ?? null,
                             'charge_card' => (bool) ($c['charge_card'] ?? false),
-                            'comment' => $c['comment'] ?: null,
-                            'fees' => $c['fees'],
+                            'comment' => $c['comment'] ?? null,
+                            'fees' => $c['fees'] ?? null,
                             'created_by' => $adminId,
                             'updated_by' => $adminId,
                         ]);
                     }
 
-                    $lead->refresh();
                     $sumFees = (float) $lead->cards()->sum('fees');
                     if ($sumFees > 0) {
                         $lead->update(['fees' => round($sumFees, 2)]);
                     }
-
                 });
 
                 $totalCreated++;
@@ -153,27 +244,24 @@ class DealSheetController extends Controller
             $filesImported++;
         }
 
+        Cache::forget($cacheKey);
+
         if ($totalCreated === 0) {
-            return back()->withErrors([
-                'deal_sheets' => $warnings !== []
-                    ? implode(' ', $warnings)
-                    : 'No leads were created. Add at least one valid .txt file.',
-            ])->withInput();
+            return redirect()->route('deal-sheets.index')->withErrors([
+                'deal_sheets' => 'No leads were imported from preview. Please upload files again.',
+            ]);
         }
 
         $message = $totalCreated === 1
             ? 'Imported 1 lead from '.$filesImported.' file(s).'
             : "Imported {$totalCreated} leads from {$filesImported} file(s).";
 
-        $redirect = redirect()
-            ->route('deal-sheets.index')
-            ->with('success', $message);
+        $this->notifyAdminsOfBulkImport($totalCreated, $filesImported, $importSlug);
 
+        $redirect = redirect()->route('deal-sheets.index')->with('success', $message);
         if ($warnings !== []) {
             $redirect->with('import_warnings', $warnings);
         }
-
-        $this->notifyAdminsOfBulkImport($totalCreated, $filesImported, $importSlug);
 
         return $redirect;
     }
@@ -214,6 +302,11 @@ class DealSheetController extends Controller
                 ],
             ]);
         }
+    }
+
+    private function previewCacheKey(int $userId, string $token): string
+    {
+        return "deal_sheet_preview:{$userId}:{$token}";
     }
 
     public function assign(Request $request, Lead $lead): RedirectResponse
