@@ -392,9 +392,36 @@
             </tbody>
         </table>
     </div>
-    @if($leads instanceof \Illuminate\Contracts\Pagination\Paginator && $leads->hasPages())
+    @if($leads instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator)
     <div class="border-t border-slate-200 px-4 py-3">
-        {{ $leads->links() }}
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p class="text-sm text-slate-600">
+                Showing {{ $leads->firstItem() ?? 0 }} to {{ $leads->lastItem() ?? 0 }} of {{ $leads->total() }} results
+            </p>
+            @if($leads->lastPage() > 1)
+            <div class="flex items-center gap-1">
+                @if($leads->onFirstPage())
+                    <span class="inline-flex items-center rounded-md border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-400">Previous</span>
+                @else
+                    <a href="{{ $leads->previousPageUrl() }}" class="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">Previous</a>
+                @endif
+
+                @foreach($leads->getUrlRange(max(1, $leads->currentPage() - 2), min($leads->lastPage(), $leads->currentPage() + 2)) as $page => $url)
+                    @if($page === $leads->currentPage())
+                        <span class="inline-flex items-center rounded-md border border-sky-200 bg-sky-50 px-3 py-1.5 text-sm font-semibold text-sky-700">{{ $page }}</span>
+                    @else
+                        <a href="{{ $url }}" class="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">{{ $page }}</a>
+                    @endif
+                @endforeach
+
+                @if($leads->hasMorePages())
+                    <a href="{{ $leads->nextPageUrl() }}" class="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">Next</a>
+                @else
+                    <span class="inline-flex items-center rounded-md border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-400">Next</span>
+                @endif
+            </div>
+            @endif
+        </div>
     </div>
     @endif
 </div>
