@@ -157,9 +157,9 @@ class LeadController extends Controller
         }
 
         $query->orderBy($sort, $order);
-        $leads = $isAgent
-            ? $query->limit(50)->get()
-            : $query->paginate(20)->withQueryString();
+        // Agents use the same pagination as admins; history limit only caps how many
+        // non-new leads they can hold (see nextAvailableLead), not list page size.
+        $leads = $query->paginate(20)->withQueryString();
 
         $statuses = $isAgent
             ? Status::whereIn('slug', $this->holdingStatusSlugs())->orderBy('name')->get()
