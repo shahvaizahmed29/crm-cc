@@ -964,11 +964,35 @@ class LeadController extends Controller
         }
 
         if ($user->isAdmin()) {
+            $timingFilter = (string) $request->query('timing', 'all');
+            if (! in_array($timingFilter, ['all', 'overdue'], true)) {
+                $timingFilter = 'all';
+            }
+
             $callbackStatusId = $this->statusIdsBySlug()['callback'] ?? null;
-            $callbacks = Lead::query()
+            $callbacksQuery = Lead::query()
                 ->with(['assignedTo', 'status'])
                 ->when($callbackStatusId !== null, fn (Builder $query) => $query->where('status_id', (int) $callbackStatusId))
-                ->when($callbackStatusId === null, fn (Builder $query) => $query->whereRaw('1=0'))
+                ->when($callbackStatusId === null, fn (Builder $query) => $query->whereRaw('1=0'));
+
+            if ($timingFilter === 'overdue') {
+                $overdueLeadIds = DB::table('crm_notifications as n')
+                    ->join(
+                        DB::raw("(SELECT MAX(id) AS id FROM crm_notifications WHERE entity_type = 'lead' AND type = 'callback.reminder' GROUP BY entity_id) as latest"),
+                        'latest.id',
+                        '=',
+                        'n.id'
+                    )
+                    ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(n.meta, '$.callback_at')) <> ''")
+                    ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(n.meta, '$.callback_at')) < ?", [now()->utc()->toIso8601String()])
+                    ->pluck('n.entity_id')
+                    ->values()
+                    ->all();
+
+                $callbacksQuery->whereIn('id', $overdueLeadIds === [] ? [0] : $overdueLeadIds);
+            }
+
+            $callbacks = $callbacksQuery
                 ->orderByDesc('updated_at')
                 ->paginate(20)
                 ->withQueryString();
@@ -990,6 +1014,7 @@ class LeadController extends Controller
                 'leads' => collect(),
                 'isAdminCallbacksView' => true,
                 'callbackReminders' => $callbackReminders,
+                'timingFilter' => $timingFilter,
             ]);
         }
 
@@ -1008,6 +1033,7 @@ class LeadController extends Controller
             'leads' => $leads,
             'isAdminCallbacksView' => false,
             'callbackReminders' => collect(),
+            'timingFilter' => 'all',
         ]);
     }
 

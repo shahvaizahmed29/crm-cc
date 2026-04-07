@@ -12,6 +12,22 @@
     @endif
 </div>
 
+@if(!empty($isAdminCallbacksView))
+<form method="GET" action="{{ route('callbacks.index') }}" class="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div class="flex flex-wrap items-end gap-3">
+        <div>
+            <label for="timing" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">Callback timing</label>
+            <select id="timing" name="timing" class="h-9 min-w-64 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800 shadow-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500">
+                <option value="all" {{ ($timingFilter ?? 'all') === 'all' ? 'selected' : '' }}>All callback leads</option>
+                <option value="overdue" {{ ($timingFilter ?? 'all') === 'overdue' ? 'selected' : '' }}>Overdue only (callback time passed)</option>
+            </select>
+        </div>
+        <button type="submit" class="inline-flex h-9 items-center rounded-md bg-sky-600 px-3 text-xs font-semibold text-white hover:bg-sky-500">Apply</button>
+        <a href="{{ route('callbacks.index') }}" class="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Reset</a>
+    </div>
+</form>
+@endif
+
 <div class="mt-6 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
     @if($callbacks->isEmpty())
         <div class="px-4 py-12 text-center text-sm text-slate-500">
