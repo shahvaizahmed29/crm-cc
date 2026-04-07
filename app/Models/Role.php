@@ -28,4 +28,9 @@ class Role extends Model
     {
         return $this->slug === 'agent';
     }
+
+    public function isSubAgent(): bool
+    {
+        return $this->slug === 'sub_agent';
+    }
 }

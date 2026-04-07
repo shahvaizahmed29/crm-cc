@@ -200,16 +200,20 @@ class CreditReportController extends Controller
             return;
         }
 
-        if (! auth()->user()->isAgent()) {
+        if (! auth()->user()->isStaffAgent()) {
             abort(403);
         }
 
-        if ($lead->is_dnc) {
+        if (auth()->user()->isAgent() && $lead->is_dnc) {
             abort(403, 'DNC leads are not available to agents.');
         }
 
         if ((int) $lead->assigned_to !== (int) auth()->id()) {
             abort(403, 'You can only access leads assigned to you.');
+        }
+
+        if (auth()->user()->isSubAgent() && ! (bool) $lead->is_deal_sheet) {
+            abort(403, 'Sub agents can only access deal sheet leads.');
         }
     }
 

@@ -37,6 +37,7 @@ Route::middleware('auth')->group(function (): void {
         Route::get('deal-sheets', [DealSheetController::class, 'index'])->name('deal-sheets.index');
         Route::post('deal-sheets', [DealSheetController::class, 'store'])->name('deal-sheets.store');
         Route::post('deal-sheets/import-preview', [DealSheetController::class, 'importPreview'])->name('deal-sheets.import-preview');
+        Route::post('deal-sheets/assign-bulk', [DealSheetController::class, 'assignBulk'])->name('deal-sheets.assign-bulk');
         Route::post('deal-sheets/{lead}/assign', [DealSheetController::class, 'assign'])->name('deal-sheets.assign');
         Route::delete('deal-sheets/{lead}', [DealSheetController::class, 'destroy'])->name('deal-sheets.destroy');
 

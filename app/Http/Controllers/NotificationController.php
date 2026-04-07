@@ -161,6 +161,15 @@ class NotificationController extends Controller
             }
         }
 
+        if (auth()->user()->isSubAgent()) {
+            if (! (bool) $lead->is_deal_sheet) {
+                return false;
+            }
+            if ((int) $lead->assigned_to !== (int) auth()->id()) {
+                return false;
+            }
+        }
+
         return true;
     }
 }

@@ -13,8 +13,9 @@ class UserSeeder extends Seeder
     {
         $adminRole = Role::where('slug', 'admin')->first();
         $agentRole = Role::where('slug', 'agent')->first();
+        $subAgentRole = Role::where('slug', 'sub_agent')->first();
 
-        if (! $adminRole || ! $agentRole) {
+        if (! $adminRole || ! $agentRole || ! $subAgentRole) {
             $this->command->warn('Run RoleSeeder first.');
             return;
         }
@@ -57,6 +58,16 @@ class UserSeeder extends Seeder
                     'last_name' => 'Zero',
                     'username' => 'agent0',
                     'email' => 'agent0@example.com',
+                    'password' => Hash::make('password'),
+                ],
+            ],
+            [
+                'role_id' => $subAgentRole->id,
+                'state' => [
+                    'name' => 'Sub',
+                    'last_name' => 'Agent',
+                    'username' => 'subagent1',
+                    'email' => 'subagent1@example.com',
                     'password' => Hash::make('password'),
                 ],
             ],

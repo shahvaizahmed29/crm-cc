@@ -43,8 +43,14 @@ class DealSheetController extends Controller
             ->paginate(20)
             ->withQueryString();
 
+        $unassignedCount = Lead::query()
+            ->when($statusId, fn ($q) => $q->where('status_id', $statusId))
+            ->when(! $statusId, fn ($q) => $q->whereRaw('1 = 0'))
+            ->whereNull('assigned_to')
+            ->count();
+
         $agents = User::query()
-            ->whereHas('roles', fn ($q) => $q->where('slug', 'agent'))
+            ->whereHas('roles', fn ($q) => $q->where('slug', 'sub_agent'))
             ->orderBy('name')
             ->get();
 
@@ -55,6 +61,7 @@ class DealSheetController extends Controller
             'newStatusId' => $newStatusId,
             'preview' => $preview,
             'previewToken' => $previewToken !== '' ? $previewToken : null,
+            'unassignedCount' => $unassignedCount,
         ]);
     }
 
@@ -163,6 +170,7 @@ class DealSheetController extends Controller
 
         $targetStatusId = (int) ($preview['target_status_id'] ?? 0);
         $importSlug = (string) ($preview['import_status'] ?? '');
+        $isDealSheetLead = $importSlug === self::STATUS_SLUG;
         $files = is_array($preview['files'] ?? null) ? $preview['files'] : [];
         $adminId = auth()->id();
         $totalCreated = 0;
@@ -195,6 +203,7 @@ class DealSheetController extends Controller
                         'status_id' => $targetStatusId,
                         'assigned_to' => null,
                         'deal_sheet_source_path' => $storedPath,
+                        'is_deal_sheet' => $isDealSheetLead,
                         'skipped_at_sequence' => null,
                     ]);
 
@@ -326,18 +335,81 @@ class DealSheetController extends Controller
 
         $assigneeId = $validated['assigned_to'] ?? null;
         if ($assigneeId !== null) {
-            $isAgent = User::query()
+            $isSubAgent = User::query()
                 ->whereKey($assigneeId)
-                ->whereHas('roles', fn ($q) => $q->where('slug', 'agent'))
+                ->whereHas('roles', fn ($q) => $q->where('slug', 'sub_agent'))
                 ->exists();
-            if (! $isAgent) {
-                return back()->withErrors(['assigned_to' => 'Assignee must be an agent.']);
+            if (! $isSubAgent) {
+                return back()->withErrors(['assigned_to' => 'Assignee must be a sub agent.']);
             }
         }
 
         $lead->update(['assigned_to' => $assigneeId]);
 
         return back()->with('success', 'Assignment updated.');
+    }
+
+    public function assignBulk(Request $request): RedirectResponse
+    {
+        $statusId = Status::where('slug', self::STATUS_SLUG)->value('id');
+        if ($statusId === null) {
+            return back()->withErrors([
+                'bulk_assigned_to' => 'Deal sheet uploaded status is not configured.',
+            ]);
+        }
+
+        $validated = $request->validate([
+            'bulk_assigned_to' => ['required', 'integer', 'exists:users,id'],
+            'bulk_lead_count' => ['required', 'integer', 'min:1', 'max:5000'],
+            'bulk_order' => ['required', 'string', 'in:latest,oldest'],
+        ]);
+
+        $assigneeId = (int) $validated['bulk_assigned_to'];
+        $requestedCount = (int) $validated['bulk_lead_count'];
+        $bulkOrder = (string) $validated['bulk_order'];
+        $isSubAgent = User::query()
+            ->whereKey($assigneeId)
+            ->whereHas('roles', fn ($q) => $q->where('slug', 'sub_agent'))
+            ->exists();
+        if (! $isSubAgent) {
+            return back()->withErrors([
+                'bulk_assigned_to' => 'Assignee must be a sub agent.',
+            ])->withInput();
+        }
+
+        $assignedCount = DB::transaction(function () use ($assigneeId, $requestedCount, $statusId, $bulkOrder): int {
+            $leadQuery = Lead::query()
+                ->where('status_id', (int) $statusId)
+                ->whereNull('assigned_to')
+                ->limit($requestedCount)
+                ->lockForUpdate();
+            if ($bulkOrder === 'oldest') {
+                $leadQuery->orderBy('created_at')->orderBy('id');
+            } else {
+                $leadQuery->orderByDesc('created_at')->orderByDesc('id');
+            }
+
+            $leadIds = $leadQuery->pluck('id')->all();
+
+            if ($leadIds === []) {
+                return 0;
+            }
+
+            return Lead::query()
+                ->whereIn('id', $leadIds)
+                ->whereNull('assigned_to')
+                ->update(['assigned_to' => $assigneeId]);
+        });
+
+        if ($assignedCount <= 0) {
+            return back()->with('error', 'No unassigned deal sheet leads were available for bulk assignment.');
+        }
+
+        $suffix = $assignedCount < $requestedCount
+            ? " ({$requestedCount} requested)."
+            : '.';
+
+        return back()->with('success', "Assigned {$assignedCount} lead(s) to selected sub agent{$suffix}");
     }
 
     public function destroy(Lead $lead): RedirectResponse

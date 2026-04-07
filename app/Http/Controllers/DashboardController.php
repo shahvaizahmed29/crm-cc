@@ -8,19 +8,24 @@ use App\Models\Setting;
 use App\Models\Status;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 use LaravelDaily\LaravelCharts\Classes\LaravelChart;
 
 class DashboardController extends Controller
 {
-    public function index(): View
+    public function index(): View|RedirectResponse
     {
         $user = auth()->user();
+        if ($user->isSubAgent()) {
+            return redirect()->route('leads.index');
+        }
         $leadsQuery = Lead::with(['status', 'assignedTo']);
         $newStatusId = Status::where('slug', 'new')->value('id');
 
         if ($user->isAgent()) {
             $leadsQuery->where('assigned_to', $user->id);
+            $leadsQuery->where('is_deal_sheet', false);
             $leadsQuery->whereIn('status_id', $this->holdingStatusIds());
         } else {
             // Admin recent activities should show worked leads only.
@@ -63,10 +68,10 @@ class DashboardController extends Controller
         ];
 
         if ($user->isAgent()) {
-            $stats['monthly_leads'] = Lead::where('assigned_to', $user->id)->whereBetween('created_at', [$monthStart, $monthEnd])->count();
-            $stats['daily_leads'] = Lead::where('assigned_to', $user->id)->whereBetween('created_at', [$todayStart, $todayEnd])->count();
-            $stats['weekly_leads'] = Lead::where('assigned_to', $user->id)->whereBetween('created_at', [$weekStart, $weekEnd])->count();
-            $stats['last_month'] = Lead::where('assigned_to', $user->id)->whereBetween('created_at', [$lastMonthStart, $lastMonthEnd])->count();
+            $stats['monthly_leads'] = Lead::where('assigned_to', $user->id)->where('is_deal_sheet', false)->whereBetween('created_at', [$monthStart, $monthEnd])->count();
+            $stats['daily_leads'] = Lead::where('assigned_to', $user->id)->where('is_deal_sheet', false)->whereBetween('created_at', [$todayStart, $todayEnd])->count();
+            $stats['weekly_leads'] = Lead::where('assigned_to', $user->id)->where('is_deal_sheet', false)->whereBetween('created_at', [$weekStart, $weekEnd])->count();
+            $stats['last_month'] = Lead::where('assigned_to', $user->id)->where('is_deal_sheet', false)->whereBetween('created_at', [$lastMonthStart, $lastMonthEnd])->count();
         }
 
         $newLeadsCount = null;
@@ -78,6 +83,7 @@ class DashboardController extends Controller
         if ($user->isAgent()) {
             $countsByStatusId = Lead::query()
                 ->where('assigned_to', $user->id)
+                ->where('is_deal_sheet', false)
                 ->selectRaw('status_id, count(*) as lead_count')
                 ->groupBy('status_id')
                 ->pluck('lead_count', 'status_id')
@@ -203,7 +209,7 @@ class DashboardController extends Controller
             ? 'leads.status_id != '.(int) $newStatusId
             : '1=1';
         if ($user->isAgent()) {
-            $whereRaw .= ' AND leads.assigned_to = '.(int) $user->id;
+            $whereRaw .= ' AND leads.assigned_to = '.(int) $user->id.' AND leads.is_deal_sheet = 0';
         }
 
         $now = Carbon::now(app_timezone());

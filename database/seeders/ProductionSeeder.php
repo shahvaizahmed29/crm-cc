@@ -30,6 +30,7 @@ class ProductionSeeder extends Seeder
         $roles = [
             ['name' => 'Administrator', 'slug' => 'admin'],
             ['name' => 'Agent', 'slug' => 'agent'],
+            ['name' => 'Sub Agent', 'slug' => 'sub_agent'],
         ];
 
         foreach ($roles as $role) {
@@ -52,10 +53,12 @@ class ProductionSeeder extends Seeder
             ['name' => 'Drop', 'slug' => 'drop'],
             ['name' => 'Not Interested', 'slug' => 'not-interested'],
             ['name' => 'Submitted', 'slug' => 'submitted'],
+            ['name' => 'Deal sheet uploaded', 'slug' => 'deal-sheet-uploaded'],
         ];
 
         $adminRole = Role::where('slug', 'admin')->first();
         $agentRole = Role::where('slug', 'agent')->first();
+        $subAgentRole = Role::where('slug', 'sub_agent')->first();
 
         if (! $adminRole || ! $agentRole) {
             $this->command->error('Roles not found. Run seedRoles first.');
@@ -64,7 +67,12 @@ class ProductionSeeder extends Seeder
 
         foreach ($statuses as $data) {
             $status = Status::firstOrCreate(['slug' => $data['slug']], $data);
-            $status->roles()->syncWithoutDetaching([$adminRole->id, $agentRole->id]);
+            $roleIds = array_values(array_filter([
+                $adminRole->id,
+                $agentRole->id,
+                $subAgentRole?->id,
+            ]));
+            $status->roles()->syncWithoutDetaching($roleIds);
         }
     }
 

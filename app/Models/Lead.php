@@ -28,6 +28,7 @@ class Lead extends Model
         'fees',
         'details',
         'deal_sheet_source_path',
+        'is_deal_sheet',
         'is_dnc',
     ];
 
@@ -37,6 +38,7 @@ class Lead extends Model
             'date_of_birth' => 'date',
             'approx_debt' => 'decimal:2',
             'fees' => 'decimal:2',
+            'is_deal_sheet' => 'boolean',
             'is_dnc' => 'boolean',
             'skipped_at_sequence' => 'integer',
         ];

@@ -15,6 +15,9 @@
     </style>
 </head>
 <body class="min-h-screen bg-linear-to-br from-slate-100 via-slate-50 to-sky-50 text-slate-900 font-sans antialiased">
+    @php
+        $navUser = auth()->user();
+    @endphp
     <header
         class="sticky top-0 z-40 border-b border-slate-200/80 bg-slate-900/95 text-white shadow-lg backdrop-blur"
         x-data="{ mobileMenuOpen: false }"
@@ -43,11 +46,13 @@
                 </div>
 
                 <nav class="hidden min-w-0 flex-1 items-center gap-2 overflow-x-auto px-2 md:flex">
+                    @if(!$navUser->isSubAgent())
                     <a href="{{ route('dashboard') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('dashboard') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Dashboard</a>
-                    @if(auth()->user()->isAgent())
+                    @endif
+                    @if($navUser->isAgent())
                     <a href="{{ route('agent.queue') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('agent.queue') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Queue</a>
                     @endif
-                    @if(auth()->user()->isAdmin())
+                    @if($navUser->isAdmin())
                     <a href="{{ route('deal-sheets.index') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('deal-sheets.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Deal sheets</a>
                     <a href="{{ route('leads.new.index') }}" class="relative shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('leads.new.index') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
                         New Leads
@@ -57,8 +62,10 @@
                     </a>
                     @endif
                     <a href="{{ route('leads.index') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('leads.*') && !request()->routeIs('leads.new.index') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Leads</a>
+                    @if(!$navUser->isSubAgent())
                     <a href="{{ route('callbacks.index') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('callbacks.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Callbacks</a>
-                    @if(auth()->user()->isAdmin())
+                    @endif
+                    @if($navUser->isAdmin())
                     <a href="{{ route('reports.sales') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('reports.sales') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Sales</a>
                     <a href="{{ route('users.index') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('users.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Users</a>
                     <a href="{{ route('settings.index') }}" class="shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold {{ request()->routeIs('settings.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Settings</a>
@@ -120,11 +127,13 @@
 
             <div x-cloak x-show="mobileMenuOpen" class="border-t border-slate-800 py-2 md:hidden">
                 <nav class="grid gap-1 pb-2">
+                    @if(!$navUser->isSubAgent())
                     <a href="{{ route('dashboard') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('dashboard') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Dashboard</a>
-                    @if(auth()->user()->isAgent())
+                    @endif
+                    @if($navUser->isAgent())
                     <a href="{{ route('agent.queue') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('agent.queue') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Queue</a>
                     @endif
-                    @if(auth()->user()->isAdmin())
+                    @if($navUser->isAdmin())
                     <a href="{{ route('deal-sheets.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('deal-sheets.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Deal sheets</a>
                     <a href="{{ route('leads.new.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('leads.new.index') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
                         New Leads
@@ -134,8 +143,10 @@
                     </a>
                     @endif
                     <a href="{{ route('leads.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('leads.*') && !request()->routeIs('leads.new.index') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Leads</a>
+                    @if(!$navUser->isSubAgent())
                     <a href="{{ route('callbacks.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('callbacks.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Callbacks</a>
-                    @if(auth()->user()->isAdmin())
+                    @endif
+                    @if($navUser->isAdmin())
                     <a href="{{ route('reports.sales') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('reports.sales') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Sales</a>
                     <a href="{{ route('users.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('users.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Users</a>
                     <a href="{{ route('settings.index') }}" class="rounded-lg px-3 py-2 text-sm font-medium {{ request()->routeIs('settings.*') ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Settings</a>

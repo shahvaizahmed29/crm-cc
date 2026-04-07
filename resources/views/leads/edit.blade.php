@@ -98,7 +98,7 @@
                             @endif
         
                             @if(auth()->user()->isAdmin())
-                            <x-form-field label="Assigned To" for="assigned_to">
+                            <x-form-field :label="$lead->is_deal_sheet ? 'Assigned To (Sub Agent)' : 'Assigned To (Agent)'" for="assigned_to">
                                 <x-select name="assigned_to" id="assigned_to" :options="['' => 'Unassigned'] + $agents->all()" :selected="old('assigned_to', $lead->assigned_to)" />
                             </x-form-field>
                             @endif

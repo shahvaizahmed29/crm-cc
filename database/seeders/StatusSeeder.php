@@ -28,10 +28,18 @@ class StatusSeeder extends Seeder
 
         $adminRole = Role::where('slug', 'admin')->first();
         $agentRole = Role::where('slug', 'agent')->first();
+        $subAgentRole = Role::where('slug', 'sub_agent')->first();
 
         foreach ($statuses as $data) {
             $status = Status::firstOrCreate(['slug' => $data['slug']], $data);
-            $status->roles()->syncWithoutDetaching([$adminRole->id, $agentRole->id]);
+            $roleIds = array_values(array_filter([
+                $adminRole?->id,
+                $agentRole?->id,
+                $subAgentRole?->id,
+            ]));
+            if ($roleIds !== []) {
+                $status->roles()->syncWithoutDetaching($roleIds);
+            }
         }
     }
 }

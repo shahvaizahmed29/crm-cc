@@ -97,6 +97,16 @@ class User extends Authenticatable
         return $this->hasRole('agent');
     }
 
+    public function isSubAgent(): bool
+    {
+        return $this->hasRole('sub_agent');
+    }
+
+    public function isStaffAgent(): bool
+    {
+        return $this->isAgent() || $this->isSubAgent();
+    }
+
     public function displayName(): string
     {
         return $this->username ?: trim("{$this->name} {$this->last_name}") ?: $this->email;

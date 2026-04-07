@@ -153,6 +153,42 @@
         <h2 class="text-sm font-semibold text-slate-800">Deal sheet uploaded — leads</h2>
         <p class="mt-0.5 text-xs text-slate-500">Only leads with status “Deal sheet uploaded”. Imports as <strong>New</strong> appear on the <a href="{{ route('leads.new.index') }}" class="font-medium text-sky-600 hover:text-sky-500">New Leads</a> page.</p>
     </div>
+    <div class="border-b border-slate-200 bg-white px-4 py-3">
+        <form action="{{ route('deal-sheets.assign-bulk') }}" method="POST" class="flex flex-wrap items-end gap-3">
+            @csrf
+            <div>
+                <label for="bulk_assigned_to" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-600">Sub agent</label>
+                <select id="bulk_assigned_to" name="bulk_assigned_to" class="h-9 min-w-48 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800 shadow-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500" required>
+                    <option value="">— Select sub agent —</option>
+                    @foreach($agents as $agent)
+                        <option value="{{ $agent->id }}" {{ old('bulk_assigned_to') == (string) $agent->id ? 'selected' : '' }}>{{ $agent->displayName() }}</option>
+                    @endforeach
+                </select>
+                @error('bulk_assigned_to')
+                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+            <div>
+                <label for="bulk_lead_count" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-600">Number of leads</label>
+                <input id="bulk_lead_count" name="bulk_lead_count" type="number" min="1" max="5000" value="{{ old('bulk_lead_count', 10) }}" class="h-9 w-36 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800 shadow-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500" required>
+                @error('bulk_lead_count')
+                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+            <div>
+                <label for="bulk_order" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-600">Assign order</label>
+                <select id="bulk_order" name="bulk_order" class="h-9 min-w-40 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800 shadow-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500" required>
+                    <option value="latest" {{ old('bulk_order', 'latest') === 'latest' ? 'selected' : '' }}>Latest first</option>
+                    <option value="oldest" {{ old('bulk_order') === 'oldest' ? 'selected' : '' }}>Oldest first</option>
+                </select>
+                @error('bulk_order')
+                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+            <button type="submit" class="inline-flex h-9 items-center rounded-md bg-slate-800 px-3 text-xs font-semibold text-white hover:bg-slate-700">Bulk Assign</button>
+            <p class="text-xs text-slate-500">Unassigned deal-sheet leads available: <span class="font-semibold">{{ (int) ($unassignedCount ?? 0) }}</span></p>
+        </form>
+    </div>
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-200">
             <thead class="bg-slate-50">
@@ -160,7 +196,7 @@
                     <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">ID</th>
                     <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Name</th>
                     <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Created</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Assign to</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Assign to sub agent</th>
                     <th class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600">Actions</th>
                 </tr>
             </thead>

@@ -57,6 +57,7 @@ class LeadController extends Controller
         $user = auth()->user();
         $isAdmin = $user->isAdmin();
         $isAgent = $user->isAgent();
+        $isSubAgent = $user->isSubAgent();
 
         $request->validate([
             'date_from' => ['nullable', 'date'],
@@ -85,10 +86,18 @@ class LeadController extends Controller
         if ($isAgent) {
             $query->where('assigned_to', $user->id);
             $query->where('status_id', '!=', $newStatusId);
+            $query->where('is_deal_sheet', false);
             $query->where('is_dnc', false);
             $query->whereIn('status_id', $this->holdingStatusIds());
             $statusesQuery->where('slug', '!=', self::ACTIVE_STATUS_SLUG);
             $holdingCount = $this->agentHoldingCount();
+        }
+
+        if ($isSubAgent) {
+            $query->where('assigned_to', $user->id);
+            $query->where('is_deal_sheet', true);
+            $query->where('status_id', '!=', $newStatusId);
+            $statusesQuery->where('slug', '!=', self::ACTIVE_STATUS_SLUG);
         }
 
         if ($isAdmin && $request->filled('status')) {
@@ -110,9 +119,11 @@ class LeadController extends Controller
             }
         }
 
-        if ($isAgent && $request->filled('status')) {
-            $holdingStatusIds = $this->holdingStatusIds();
-            if (in_array((int) $request->status, $holdingStatusIds, true)) {
+        if (($isAgent || $isSubAgent) && $request->filled('status')) {
+            $allowedStatusIds = $isAgent
+                ? $this->holdingStatusIds()
+                : Status::query()->where('slug', '!=', self::ACTIVE_STATUS_SLUG)->pluck('id')->map(fn ($id) => (int) $id)->all();
+            if (in_array((int) $request->status, $allowedStatusIds, true)) {
                 $query->where('status_id', $request->status);
             }
         }
@@ -163,7 +174,9 @@ class LeadController extends Controller
 
         $statuses = $isAgent
             ? Status::whereIn('slug', $this->holdingStatusSlugs())->orderBy('name')->get()
-            : $statusesQuery->get();
+            : ($isSubAgent
+                ? Status::where('slug', '!=', self::ACTIVE_STATUS_SLUG)->orderBy('name')->get()
+                : $statusesQuery->get());
 
         $availableColumns = [
             ['id' => 'name', 'label' => 'Name'],
@@ -183,7 +196,7 @@ class LeadController extends Controller
         }
 
         $assignableUsers = $isAdmin
-            ? User::whereHas('roles', fn ($q) => $q->where('slug', 'agent'))->orderBy('name')->get()
+            ? User::whereHas('roles', fn ($q) => $q->whereIn('slug', ['agent', 'sub_agent']))->orderBy('name')->get()
             : collect();
 
         return view('leads.index', compact('leads', 'statuses', 'holdingCount', 'historyLimit', 'availableColumns', 'defaultColumns', 'assignableUsers', 'sort', 'order'));
@@ -336,6 +349,7 @@ class LeadController extends Controller
             ->whereKey($request->integer('lead_id'))
             ->whereNull('assigned_to')
             ->whereIn('status_id', $queueStatusIds)
+            ->where('is_deal_sheet', false)
             ->where('is_dnc', false)
             ->exists();
 
@@ -352,6 +366,7 @@ class LeadController extends Controller
             ->whereKey($request->integer('lead_id'))
             ->whereNull('assigned_to')
             ->whereIn('status_id', $queueStatusIds)
+            ->where('is_deal_sheet', false)
             ->where('is_dnc', false)
             ->update(['skipped_at_sequence' => $sequence]);
         $request->session()->forget(['agent_last_shown_lead_id', 'agent_last_shown_global_sequence']);
@@ -390,6 +405,7 @@ class LeadController extends Controller
                     ->whereKey($leadId)
                     ->whereNull('assigned_to')
                     ->whereIn('status_id', $queueStatusIds)
+                    ->where('is_deal_sheet', false)
                     ->where('is_dnc', false)
                     ->lockForUpdate()
                     ->first();
@@ -596,6 +612,7 @@ class LeadController extends Controller
                             'fees' => $this->parseDecimal($this->getCsvColumn($data, ['Fees', 'fees', 'fee'])),
                             'details' => $details !== '' ? $details : null,
                             'is_dnc' => $this->parseBoolean($this->getCsvColumn($data, ['is_dnc', 'dnc'])),
+                            'is_deal_sheet' => (bool) $existingLead->is_deal_sheet,
                             'status_id' => $statusId,
                             'assigned_to' => $assignedTo,
                         ]);
@@ -623,6 +640,7 @@ class LeadController extends Controller
                             'fees' => $this->parseDecimal($this->getCsvColumn($data, ['Fees', 'fees', 'fee'])),
                             'details' => $details !== '' ? $details : null,
                             'is_dnc' => $this->parseBoolean($this->getCsvColumn($data, ['is_dnc', 'dnc'])),
+                            'is_deal_sheet' => false,
                             'status_id' => $statusId,
                             'assigned_to' => $assignedTo,
                         ]);
@@ -855,8 +873,9 @@ class LeadController extends Controller
             'fees' => $validated['fees'] ?? null,
             'details' => $validated['details'],
             'is_dnc' => $request->boolean('is_dnc'),
+            'is_deal_sheet' => false,
             'status_id' => $validated['status_id'],
-            'assigned_to' => auth()->user()->isAgent() ? auth()->id() : null,
+            'assigned_to' => auth()->user()->isStaffAgent() ? auth()->id() : null,
         ]);
 
         foreach ($this->normalizedPhonesFromRequest($validated['phones'] ?? null) as $phone) {
@@ -885,7 +904,7 @@ class LeadController extends Controller
     {
         $this->authorizeView($lead);
 
-        $statuses = auth()->user()->isAgent()
+        $statuses = auth()->user()->isStaffAgent()
             ? Status::where('slug', '!=', self::ACTIVE_STATUS_SLUG)->orderBy('name')->get()
             : Status::orderBy('name')->get();
 
@@ -900,11 +919,11 @@ class LeadController extends Controller
         $this->authorizeView($lead);
         $validated = $this->validateLeadPayload($request);
 
-        if (auth()->user()->isAgent() && (int) $validated['status_id'] === $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG)) {
+        if (auth()->user()->isStaffAgent() && (int) $validated['status_id'] === $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG)) {
             return back()->with('error', 'Agent cannot create related lead with New status.')->withInput();
         }
 
-        $assignedTo = auth()->user()->isAgent()
+        $assignedTo = auth()->user()->isStaffAgent()
             ? auth()->id()
             : ($lead->assigned_to ?: null);
 
@@ -920,6 +939,7 @@ class LeadController extends Controller
             'fees' => $validated['fees'] ?? null,
             'details' => $validated['details'],
             'is_dnc' => $request->boolean('is_dnc'),
+            'is_deal_sheet' => (bool) $lead->is_deal_sheet,
             'status_id' => $validated['status_id'],
             'assigned_to' => $assignedTo,
         ]);
@@ -938,6 +958,41 @@ class LeadController extends Controller
 
     public function callbacksIndex(): View
     {
+        $user = auth()->user();
+        if ($user->isSubAgent()) {
+            abort(403, 'Sub agents do not have access to callbacks.');
+        }
+
+        if ($user->isAdmin()) {
+            $callbackStatusId = $this->statusIdsBySlug()['callback'] ?? null;
+            $callbacks = Lead::query()
+                ->with(['assignedTo', 'status'])
+                ->when($callbackStatusId !== null, fn (Builder $query) => $query->where('status_id', (int) $callbackStatusId))
+                ->when($callbackStatusId === null, fn (Builder $query) => $query->whereRaw('1=0'))
+                ->orderByDesc('updated_at')
+                ->paginate(20)
+                ->withQueryString();
+
+            $leadIds = $callbacks->getCollection()->pluck('id')->unique()->values()->all();
+            $callbackReminders = $leadIds === []
+                ? collect()
+                : CrmNotification::query()
+                    ->where('entity_type', 'lead')
+                    ->where('type', 'callback.reminder')
+                    ->whereIn('entity_id', $leadIds)
+                    ->orderByDesc('notify_at')
+                    ->get()
+                    ->groupBy('entity_id')
+                    ->map(fn ($rows) => $rows->first());
+
+            return view('callbacks.index', [
+                'callbacks' => $callbacks,
+                'leads' => collect(),
+                'isAdminCallbacksView' => true,
+                'callbackReminders' => $callbackReminders,
+            ]);
+        }
+
         $callbacks = CrmNotification::query()
             ->where('target_user_id', auth()->id())
             ->where('type', 'like', 'callback.%')
@@ -948,7 +1003,12 @@ class LeadController extends Controller
         $leadIds = $callbacks->getCollection()->pluck('entity_id')->unique()->filter()->values()->all();
         $leads = $leadIds !== [] ? Lead::whereIn('id', $leadIds)->get()->keyBy('id') : collect();
 
-        return view('callbacks.index', compact('callbacks', 'leads'));
+        return view('callbacks.index', [
+            'callbacks' => $callbacks,
+            'leads' => $leads,
+            'isAdminCallbacksView' => false,
+            'callbackReminders' => collect(),
+        ]);
     }
 
     public function show(Lead $lead): View
@@ -1052,14 +1112,16 @@ class LeadController extends Controller
     {
         $this->authorizeView($lead);
         $lead->load(['phones', 'emails', 'notes.createdBy', 'cards.createdBy', 'cards.updatedBy', 'creditReports.requestedBy', 'creditReports.processedBy']);
-        $statuses = auth()->user()->isAgent()
+        $statuses = auth()->user()->isStaffAgent()
             ? Status::where('slug', '!=', self::ACTIVE_STATUS_SLUG)->orderBy('name')->get()
             : Status::orderBy('name')->get();
         if ($lead->status?->slug !== self::DEAL_SHEET_STATUS_SLUG) {
             $statuses = $statuses->filter(fn (Status $s) => $s->slug !== self::DEAL_SHEET_STATUS_SLUG)->values();
         }
         $agents = auth()->user()->isAdmin()
-            ? \App\Models\User::whereHas('roles', fn ($q) => $q->where('slug', 'agent'))->orderBy('name')->get()->mapWithKeys(fn ($u) => [$u->id => $u->displayName()])
+            ? \App\Models\User::whereHas('roles', function ($q) use ($lead): void {
+                $q->where('slug', (bool) $lead->is_deal_sheet ? 'sub_agent' : 'agent');
+            })->orderBy('name')->get()->mapWithKeys(fn ($u) => [$u->id => $u->displayName()])
             : collect();
         $callbackStatusId = $this->statusIdsBySlug()['callback'] ?? null;
         $callbackDate = null;
@@ -1092,7 +1154,7 @@ class LeadController extends Controller
 
         $validated = $this->validateLeadPayload($request, true);
 
-        if (auth()->user()->isAgent() && (int) $validated['status_id'] === $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG)) {
+        if (auth()->user()->isStaffAgent() && (int) $validated['status_id'] === $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG)) {
             return back()->with('error', 'Agent must submit with a non-New status.')->withInput();
         }
 
@@ -1103,10 +1165,28 @@ class LeadController extends Controller
                     'status_id' => 'You cannot set status to “Deal sheet uploaded” here. Use the Deal sheets upload.',
                 ])->withInput();
             }
-            if (auth()->user()->isAgent() && (int) $validated['status_id'] === (int) $dealSheetStatusId) {
+            if (auth()->user()->isStaffAgent() && (int) $validated['status_id'] === (int) $dealSheetStatusId) {
                 return back()->withErrors([
                     'status_id' => 'Agents cannot set this status.',
                 ])->withInput();
+            }
+        }
+
+        if (auth()->user()->isAdmin() && array_key_exists('assigned_to', $validated)) {
+            $assignedTo = $validated['assigned_to'] ?? null;
+            if ($assignedTo !== null) {
+                $requiredRole = (bool) $lead->is_deal_sheet ? 'sub_agent' : 'agent';
+                $isAllowedAssignee = User::query()
+                    ->whereKey((int) $assignedTo)
+                    ->whereHas('roles', fn ($q) => $q->where('slug', $requiredRole))
+                    ->exists();
+                if (! $isAllowedAssignee) {
+                    return back()->withErrors([
+                        'assigned_to' => (bool) $lead->is_deal_sheet
+                            ? 'Deal sheet leads can only be assigned to sub agents.'
+                            : 'Normal leads can only be assigned to agents.',
+                    ])->withInput();
+                }
             }
         }
 
@@ -1154,6 +1234,7 @@ class LeadController extends Controller
             'fees' => $lead->cards()->sum('fees'),
             'details' => $validated['details'],
             'is_dnc' => $request->boolean('is_dnc'),
+            'is_deal_sheet' => (bool) $lead->is_deal_sheet,
             'status_id' => $validated['status_id'],
             'assigned_to' => $this->shouldUnassignAfterStatusUpdate((int) $validated['status_id'])
                 ? null
@@ -1193,6 +1274,10 @@ class LeadController extends Controller
     private function authorizeView(Lead $lead): void
     {
         if (auth()->user()->isAgent()) {
+            if ((bool) $lead->is_deal_sheet) {
+                abort(403, 'Deal sheet leads are only available to sub agents.');
+            }
+
             if ($lead->is_dnc) {
                 abort(403, 'DNC leads are not available to agents.');
             }
@@ -1203,6 +1288,16 @@ class LeadController extends Controller
 
             if (! in_array((int) $lead->status_id, $this->holdingStatusIds(), true)) {
                 abort(403, 'You can only access leads in holding statuses.');
+            }
+        }
+
+        if (auth()->user()->isSubAgent()) {
+            if (! (bool) $lead->is_deal_sheet) {
+                abort(403, 'Sub agents can only access deal sheet leads.');
+            }
+
+            if ($lead->assigned_to !== auth()->id()) {
+                abort(403, 'You can only view leads assigned to you.');
             }
         }
     }
@@ -1696,7 +1791,12 @@ class LeadController extends Controller
         if ($assigned === '') {
             return null;
         }
-        $user = User::where('username', $assigned)->orWhere('email', $assigned)->first();
+        $user = User::query()
+            ->where(function ($query) use ($assigned): void {
+                $query->where('username', $assigned)->orWhere('email', $assigned);
+            })
+            ->whereHas('roles', fn ($q) => $q->where('slug', 'agent'))
+            ->first();
         return $user?->id;
     }
 
@@ -1826,6 +1926,7 @@ class LeadController extends Controller
     private function agentHoldingCount(): int
     {
         return Lead::where('assigned_to', auth()->id())
+            ->where('is_deal_sheet', false)
             ->whereIn('status_id', $this->holdingStatusIds())
             ->whereNull('parent_lead_id')
             ->count();
@@ -1963,6 +2064,7 @@ class LeadController extends Controller
         $queueLeads = Lead::query()
             ->whereNull('assigned_to')
             ->whereIn('status_id', $queueStatusIds)
+            ->where('is_deal_sheet', false)
             ->where('is_dnc', false)
             ->orderBy('id', $direction)
             ->get(['id', 'skipped_at_sequence']);
