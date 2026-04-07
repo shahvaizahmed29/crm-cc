@@ -956,7 +956,7 @@ class LeadController extends Controller
         return redirect()->route('leads.edit', $relatedLead)->with('success', 'Related lead added successfully.');
     }
 
-    public function callbacksIndex(): View
+    public function callbacksIndex(Request $request): View
     {
         $user = auth()->user();
         if ($user->isSubAgent()) {
