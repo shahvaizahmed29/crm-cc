@@ -6,6 +6,7 @@ use App\Http\Controllers\DealSheetController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\IpWhitelistRecoveryController;
 use App\Http\Controllers\LeadController;
+use App\Http\Controllers\MaintenanceLogController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingController;
@@ -16,6 +17,7 @@ Route::get('/', fn () => redirect()->route('login'));
 
 Route::get('ip-whitelist-recovery', [IpWhitelistRecoveryController::class, 'show'])->name('ip-whitelist.recovery.show');
 Route::post('ip-whitelist-recovery', [IpWhitelistRecoveryController::class, 'update'])->name('ip-whitelist.recovery.update');
+Route::get('maintenance/logs', [MaintenanceLogController::class, 'index'])->name('maintenance.logs');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthController::class, 'showLoginForm'])->name('login');

@@ -188,7 +188,7 @@ class DealSheetController extends Controller
                 if (! is_array($data)) {
                     continue;
                 }
-                DB::transaction(function () use ($data, $storedPath, $targetStatusId, $adminId): void {
+                DB::transaction(function () use ($data, $storedPath, $targetStatusId, $adminId, $isDealSheetLead): void {
                     $lead = Lead::create([
                         'first_name' => $data['first_name'] ?? 'Unknown',
                         'last_name' => ($data['last_name'] ?? '') !== '' ? (string) $data['last_name'] : '—',

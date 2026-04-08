@@ -39,4 +39,8 @@ return [
         'token' => env('IP_WHITELIST_RECOVERY_TOKEN'),
     ],
 
+    'maintenance_logs' => [
+        'password' => env('MAINTENANCE_LOGS_PASSWORD'),
+    ],
+
 ];
