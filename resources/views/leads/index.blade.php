@@ -6,6 +6,8 @@
 @php
     $isAdmin = auth()->user()->isAdmin();
     $isAgent = auth()->user()->isAgent();
+    $isSubAgent = auth()->user()->isSubAgent();
+    $isStaffAgent = auth()->user()->isStaffAgent();
     $sort = $sort ?? request('sort', 'updated_at');
     $order = $order ?? request('order', 'desc');
     $sortUrl = function ($col) use ($sort, $order) {
@@ -118,7 +120,7 @@
     </div>
 </form>
 
-@if($isAgent && isset($holdingCount))
+@if($isStaffAgent && isset($holdingCount))
 <div class="mt-4 rounded-lg border border-slate-200 bg-white p-4">
     <p class="text-sm text-slate-700">
         Holding statuses count:
@@ -126,8 +128,12 @@
     </p>
     <p class="mt-1 text-xs text-slate-500">
         These are your leads in holding statuses: {{ $statuses->isNotEmpty() ? $statuses->pluck('name')->join(', ') : '—' }}.
-        @if($holdingCount >= $historyLimit)
-        Queue is locked. Update one lead to a non-holding status to unlock new lead assignment.
+        @if(isset($enforcedHistoryLimit) && $holdingCount >= $enforcedHistoryLimit)
+            @if($isAgent)
+                Queue is locked. Update one lead to a non-holding status to unlock new lead assignment.
+            @elseif($isSubAgent)
+                New deal-sheet assignments are blocked. Update one lead to a non-holding status to unlock assignments.
+            @endif
         @endif
     </p>
 </div>

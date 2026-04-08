@@ -5,7 +5,7 @@
 @section('content')
 <div>
     <h1 class="text-2xl font-semibold text-slate-900">Settings</h1>
-    <p class="mt-1 text-sm text-slate-600">Configure agent history limit and which statuses count toward the holding limit.</p>
+    <p class="mt-1 text-sm text-slate-600">Configure agent/sub-agent history limits and which statuses count toward holding limits.</p>
 </div>
 
 <form action="{{ route('settings.update') }}" method="POST" class="mt-6 space-y-6">
@@ -31,6 +31,27 @@
         @error('agent_history_limit')
             <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
         @enderror
+
+        <div class="mt-5">
+            <h3 class="text-sm font-semibold text-slate-900">Sub agent history limit</h3>
+            <p class="mt-1 text-sm text-slate-500">Sub agents cannot receive new deal-sheet assignments when their holding count reaches this limit.</p>
+            <div class="mt-2">
+                <label for="sub_agent_history_limit" class="sr-only">Sub agent history limit</label>
+                <input
+                    type="number"
+                    name="sub_agent_history_limit"
+                    id="sub_agent_history_limit"
+                    min="1"
+                    max="500"
+                    value="{{ old('sub_agent_history_limit', $subAgentHistoryLimit) }}"
+                    class="rounded-md border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500"
+                    required
+                >
+            </div>
+            @error('sub_agent_history_limit')
+                <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
+            @enderror
+        </div>
     </div>
 
     <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">

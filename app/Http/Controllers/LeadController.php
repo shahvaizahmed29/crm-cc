@@ -80,7 +80,8 @@ class LeadController extends Controller
         $query = Lead::with(['status', 'assignedTo', 'phones', 'emails']);
         $statusesQuery = Status::orderBy('name');
         $holdingCount = null;
-        $historyLimit = $this->agentHistoryLimit();
+        $historyLimit = null;
+        $enforcedHistoryLimit = null;
         $newStatusId = $this->statusIdBySlug(self::ACTIVE_STATUS_SLUG);
 
         if ($isAgent) {
@@ -91,6 +92,8 @@ class LeadController extends Controller
             $query->whereIn('status_id', $this->holdingStatusIds());
             $statusesQuery->where('slug', '!=', self::ACTIVE_STATUS_SLUG);
             $holdingCount = $this->agentHoldingCount();
+            $enforcedHistoryLimit = $this->agentHistoryLimit();
+            $historyLimit = max($holdingCount, $enforcedHistoryLimit);
         }
 
         if ($isSubAgent) {
@@ -98,6 +101,9 @@ class LeadController extends Controller
             $query->where('is_deal_sheet', true);
             $query->where('status_id', '!=', $newStatusId);
             $statusesQuery->where('slug', '!=', self::ACTIVE_STATUS_SLUG);
+            $holdingCount = $this->subAgentHoldingCountByUserId((int) $user->id);
+            $enforcedHistoryLimit = $this->subAgentHistoryLimit();
+            $historyLimit = max($holdingCount, $enforcedHistoryLimit);
         }
 
         if ($isAdmin && $request->filled('status')) {
@@ -199,7 +205,7 @@ class LeadController extends Controller
             ? User::whereHas('roles', fn ($q) => $q->whereIn('slug', ['agent', 'sub_agent']))->orderBy('name')->get()
             : collect();
 
-        return view('leads.index', compact('leads', 'statuses', 'holdingCount', 'historyLimit', 'availableColumns', 'defaultColumns', 'assignableUsers', 'sort', 'order'));
+        return view('leads.index', compact('leads', 'statuses', 'holdingCount', 'historyLimit', 'enforcedHistoryLimit', 'availableColumns', 'defaultColumns', 'assignableUsers', 'sort', 'order'));
     }
 
     public function adminNewLeads(Request $request): View
@@ -313,8 +319,9 @@ class LeadController extends Controller
     {
         $activeLead = $this->agentActiveLead();
         $holdingCount = $this->agentHoldingCount();
-        $historyLimit = $this->agentHistoryLimit();
-        $isBlockedByHistory = $holdingCount >= $historyLimit;
+        $enforcedHistoryLimit = $this->agentHistoryLimit();
+        $historyLimit = max($holdingCount, $enforcedHistoryLimit);
+        $isBlockedByHistory = $holdingCount >= $enforcedHistoryLimit;
         $candidateLead = null;
 
         if (! $activeLead && ! $isBlockedByHistory) {
@@ -326,6 +333,7 @@ class LeadController extends Controller
             'candidateLead' => $candidateLead,
             'holdingCount' => $holdingCount,
             'historyLimit' => $historyLimit,
+            'enforcedHistoryLimit' => $enforcedHistoryLimit,
             'isBlockedByHistory' => $isBlockedByHistory,
         ]);
     }
@@ -1213,6 +1221,18 @@ class LeadController extends Controller
                             : 'Normal leads can only be assigned to agents.',
                     ])->withInput();
                 }
+
+                if ((bool) $lead->is_deal_sheet && (int) $assignedTo !== (int) ($lead->assigned_to ?? 0)) {
+                    $isHoldingStatus = in_array((int) $lead->status_id, $this->holdingStatusIds(), true);
+                    if (
+                        $isHoldingStatus
+                        && $this->subAgentHoldingCountByUserId((int) $assignedTo) >= $this->subAgentHistoryLimit()
+                    ) {
+                        return back()->withErrors([
+                            'assigned_to' => 'Selected sub agent reached the holding limit. Reduce holding leads before assigning more.',
+                        ])->withInput();
+                    }
+                }
             }
         }
 
@@ -2073,6 +2093,24 @@ class LeadController extends Controller
         $configured = (int) (Setting::get('agent_history_limit', (string) $fallback) ?? $fallback);
 
         return max(1, $configured);
+    }
+
+    private function subAgentHistoryLimit(): int
+    {
+        $fallback = (int) env('SUB_AGENT_HISTORY_LIMIT', 50);
+        $configured = (int) (Setting::get('sub_agent_history_limit', (string) $fallback) ?? $fallback);
+
+        return max(1, $configured);
+    }
+
+    private function subAgentHoldingCountByUserId(int $userId): int
+    {
+        return Lead::query()
+            ->where('assigned_to', $userId)
+            ->where('is_deal_sheet', true)
+            ->whereIn('status_id', $this->holdingStatusIds())
+            ->whereNull('parent_lead_id')
+            ->count();
     }
 
     /**

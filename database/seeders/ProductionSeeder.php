@@ -80,6 +80,7 @@ class ProductionSeeder extends Seeder
     {
         $defaults = [
             'agent_history_limit' => '50',
+            'sub_agent_history_limit' => '50',
             'cr_sound_notifications_enabled' => '1',
             'callback_reminder_minutes' => '15',
             'holding_status_slugs' => json_encode([

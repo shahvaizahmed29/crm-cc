@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use SplFileObject;
 
 class MaintenanceLogController extends Controller
 {
@@ -30,23 +31,7 @@ class MaintenanceLogController extends Controller
             ], 404);
         }
 
-        $lines = file($logPath, FILE_IGNORE_NEW_LINES);
-        if ($lines === false) {
-            return response()->json([
-                'file' => $logPath,
-                'type' => $requestedType,
-                'tail' => $tail,
-                'count' => 0,
-                'lines' => [],
-                'error' => 'Unable to read log file.',
-            ], 500);
-        }
-
-        $filtered = $requestedType === 'all'
-            ? $lines
-            : array_values(array_filter($lines, fn (string $line): bool => $this->lineMatchesType($line, $requestedType)));
-
-        $result = array_slice($filtered, -1 * $tail);
+        $result = $this->tailFilteredLines($logPath, $tail, $requestedType);
 
         return response()->json([
             'file' => $logPath,
@@ -81,6 +66,39 @@ class MaintenanceLogController extends Controller
         ];
 
         return $aliases[$value] ?? $value;
+    }
+
+    /** @return array<int, string> */
+    private function tailFilteredLines(string $path, int $tail, string $type): array
+    {
+        try {
+            $file = new SplFileObject($path, 'r');
+            $file->seek(PHP_INT_MAX);
+            $lastLineIndex = $file->key();
+            $collected = [];
+
+            for ($lineIndex = $lastLineIndex; $lineIndex >= 0; $lineIndex--) {
+                $file->seek($lineIndex);
+                $line = rtrim((string) $file->current(), "\r\n");
+
+                if ($line === '') {
+                    continue;
+                }
+
+                if ($type !== 'all' && ! $this->lineMatchesType($line, $type)) {
+                    continue;
+                }
+
+                $collected[] = $line;
+                if (count($collected) >= $tail) {
+                    break;
+                }
+            }
+
+            return array_reverse($collected);
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     private function resolveLogFilePath(): ?string

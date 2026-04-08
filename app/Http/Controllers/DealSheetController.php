@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\CrmNotification;
 use App\Models\Lead;
 use App\Models\LeadCard;
+use App\Models\Setting;
 use App\Models\Status;
 use App\Models\User;
 use App\Services\LeadTxtExportParser;
@@ -342,6 +343,18 @@ class DealSheetController extends Controller
             if (! $isSubAgent) {
                 return back()->withErrors(['assigned_to' => 'Assignee must be a sub agent.']);
             }
+
+            $isHoldingStatus = in_array((int) $lead->status_id, $this->holdingStatusIds(), true);
+            $isMovingToDifferentAssignee = (int) $assigneeId !== (int) ($lead->assigned_to ?? 0);
+            if (
+                $isHoldingStatus
+                && $isMovingToDifferentAssignee
+                && $this->subAgentHoldingCount((int) $assigneeId) >= $this->subAgentHistoryLimit()
+            ) {
+                return back()->withErrors([
+                    'assigned_to' => 'Selected sub agent reached the holding limit. Reduce holding leads before assigning more.',
+                ])->withInput();
+            }
         }
 
         $lead->update(['assigned_to' => $assigneeId]);
@@ -367,6 +380,8 @@ class DealSheetController extends Controller
         $assigneeId = (int) $validated['bulk_assigned_to'];
         $requestedCount = (int) $validated['bulk_lead_count'];
         $bulkOrder = (string) $validated['bulk_order'];
+        $configuredLimit = $this->subAgentHistoryLimit();
+        $currentHoldingCount = $this->subAgentHoldingCount($assigneeId);
         $isSubAgent = User::query()
             ->whereKey($assigneeId)
             ->whereHas('roles', fn ($q) => $q->where('slug', 'sub_agent'))
@@ -377,11 +392,16 @@ class DealSheetController extends Controller
             ])->withInput();
         }
 
-        $assignedCount = DB::transaction(function () use ($assigneeId, $requestedCount, $statusId, $bulkOrder): int {
+        $assignedCount = DB::transaction(function () use ($assigneeId, $requestedCount, $statusId, $bulkOrder, $configuredLimit, $currentHoldingCount): int {
+            $remainingSlots = max(0, $configuredLimit - $currentHoldingCount);
+            if ($remainingSlots <= 0) {
+                return 0;
+            }
+
             $leadQuery = Lead::query()
                 ->where('status_id', (int) $statusId)
                 ->whereNull('assigned_to')
-                ->limit($requestedCount)
+                ->limit(min($requestedCount, $remainingSlots))
                 ->lockForUpdate();
             if ($bulkOrder === 'oldest') {
                 $leadQuery->orderBy('created_at')->orderBy('id');
@@ -402,6 +422,10 @@ class DealSheetController extends Controller
         });
 
         if ($assignedCount <= 0) {
+            if ($currentHoldingCount >= $configuredLimit) {
+                return back()->with('error', "Selected sub agent is already at/above the enforced holding limit ({$configuredLimit}).");
+            }
+
             return back()->with('error', 'No unassigned deal sheet leads were available for bulk assignment.');
         }
 
@@ -410,6 +434,40 @@ class DealSheetController extends Controller
             : '.';
 
         return back()->with('success', "Assigned {$assignedCount} lead(s) to selected sub agent{$suffix}");
+    }
+
+    private function subAgentHistoryLimit(): int
+    {
+        $fallback = (int) env('SUB_AGENT_HISTORY_LIMIT', 50);
+        $configured = (int) (Setting::get('sub_agent_history_limit', (string) $fallback) ?? $fallback);
+
+        return max(1, $configured);
+    }
+
+    private function subAgentHoldingCount(int $userId): int
+    {
+        return Lead::query()
+            ->where('assigned_to', $userId)
+            ->where('is_deal_sheet', true)
+            ->whereIn('status_id', $this->holdingStatusIds())
+            ->whereNull('parent_lead_id')
+            ->count();
+    }
+
+    /** @return array<int> */
+    private function holdingStatusIds(): array
+    {
+        $slugs = Setting::getJsonArray('holding_status_slugs', []);
+        if ($slugs === []) {
+            return [];
+        }
+
+        return Status::query()
+            ->whereIn('slug', $slugs)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
     }
 
     public function destroy(Lead $lead): RedirectResponse

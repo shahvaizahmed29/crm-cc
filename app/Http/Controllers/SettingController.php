@@ -69,6 +69,7 @@ class SettingController extends Controller
     public function index(): View
     {
         $agentHistoryLimit = Setting::get('agent_history_limit', '50');
+        $subAgentHistoryLimit = Setting::get('sub_agent_history_limit', '50');
         $roundRobinLeadsBeforeSkippedReshown = max(
             self::MIN_ROUND_ROBIN_RESHOW_LEADS,
             min(
@@ -91,6 +92,7 @@ class SettingController extends Controller
 
         return view('settings.index', [
             'agentHistoryLimit' => $agentHistoryLimit,
+            'subAgentHistoryLimit' => $subAgentHistoryLimit,
             'roundRobinLeadsBeforeSkippedReshown' => $roundRobinLeadsBeforeSkippedReshown,
             'holdingStatusSlugs' => $holdingStatusSlugs,
             'crSoundNotificationsEnabled' => $crSoundNotificationsEnabled,
@@ -114,6 +116,7 @@ class SettingController extends Controller
 
         $validated = $request->validate([
             'agent_history_limit' => ['required', 'integer', 'min:1', 'max:500'],
+            'sub_agent_history_limit' => ['required', 'integer', 'min:1', 'max:500'],
             'round_robin_leads_before_skipped_reshown' => ['required', 'integer', 'min:' . self::MIN_ROUND_ROBIN_RESHOW_LEADS, 'max:' . self::MAX_ROUND_ROBIN_RESHOW_LEADS],
             'holding_status_slugs' => ['nullable', 'array'],
             'holding_status_slugs.*' => ['string', 'exists:statuses,slug'],
@@ -126,6 +129,7 @@ class SettingController extends Controller
         ]);
 
         Setting::put('agent_history_limit', (string) $validated['agent_history_limit']);
+        Setting::put('sub_agent_history_limit', (string) $validated['sub_agent_history_limit']);
         Setting::put(
             'round_robin_leads_before_skipped_reshown',
             (string) max(

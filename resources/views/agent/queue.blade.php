@@ -39,6 +39,9 @@
         <h2 class="text-lg font-semibold text-slate-900">Queue Blocked</h2>
         <p class="mt-2 text-sm text-slate-700">
             You already have {{ $holdingCount }} leads in holding statuses.
+            @if(isset($enforcedHistoryLimit))
+            Current enforced limit is {{ $enforcedHistoryLimit }}.
+            @endif
             Update at least one history lead to a final status (not Need To Reconnect, Callback, Payoff, Maxout, Drop) to continue.
         </p>
         <div class="mt-4">
