@@ -33,7 +33,11 @@
             @forelse($reports as $report)
                 <tr>
                     <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">
-                        <a href="{{ route('leads.show', $report->lead) }}" class="text-sky-600 hover:text-sky-500">{{ $report->lead->fullName() }}</a>
+                        @if($report->lead)
+                            <a href="{{ route('leads.show', $report->lead) }}" class="text-sky-600 hover:text-sky-500">{{ $report->lead->fullName() }}</a>
+                        @else
+                            <span class="text-slate-500">Lead not available</span>
+                        @endif
                     </td>
                     <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{{ $report->phone_number ?? '—' }}</td>
                     <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{{ ucfirst($report->status) }}</td>
